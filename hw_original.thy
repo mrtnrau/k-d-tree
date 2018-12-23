@@ -292,28 +292,56 @@ theorem query:
 
 (* **** *)
 
+definition squared_distance' :: "real \<Rightarrow> real \<Rightarrow> real" where
+  "squared_distance' x y = (x - y) ^ 2"
+
+lemma squared_distance'_ge_0:
+  "squared_distance' x y \<ge> 0"
+  using squared_distance'_def by simp
+
+lemma squared_distance'_eq_0[simp]:
+  "squared_distance' x y = 0 \<longleftrightarrow> x = y"
+  using squared_distance'_def by simp
+
 fun squared_distance :: "point \<Rightarrow> point \<Rightarrow> real" where
   "squared_distance [] [] = 0"
-| "squared_distance (x # xs) (y # ys) = (x - y) ^ 2 + squared_distance xs ys"
+| "squared_distance (x # xs) (y # ys) = squared_distance' x y + squared_distance xs ys"
 | "squared_distance _ _ = undefined"
+
+lemma squared_distance_ge_0:
+  assumes "dim p\<^sub>0 = dim p\<^sub>1"
+  shows "squared_distance p\<^sub>0 p\<^sub>1 \<ge> 0"
+  using assms
+  by (induction p\<^sub>0 p\<^sub>1 rule: squared_distance.induct) (auto simp add: squared_distance'_ge_0)
+
+lemma squared_distance_eq_0[simp]:
+  assumes "p\<^sub>0 = p\<^sub>1" "dim p\<^sub>0 = dim p\<^sub>1"
+  shows "squared_distance p\<^sub>0 p\<^sub>1 = 0"
+  sorry
 
 definition min_by_squared_distance :: "point \<Rightarrow> point \<Rightarrow> point \<Rightarrow> point" where
   "min_by_squared_distance p\<^sub>0 p\<^sub>1 q = (
     if squared_distance p\<^sub>0 q \<le> squared_distance p\<^sub>1 q then p\<^sub>0 else p\<^sub>1
   )"
 
+lemma mbsqd:
+  "min_by_squared_distance p\<^sub>0 p\<^sub>1 q = p\<^sub>0 \<or> min_by_squared_distance p\<^sub>0 p\<^sub>1 q = p\<^sub>1"
+  using min_by_squared_distance_def by simp
+
 fun nearest_neighbor' :: "axis \<Rightarrow> dimension \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point" where
   "nearest_neighbor' _ _ _ Leaf = undefined"
 | "nearest_neighbor' _ _ _ (Node Leaf p' Leaf) = p'"
 | "nearest_neighbor' a k p (Node Leaf p' r) = (
-    if p = p' \<or> p!a \<le> p'!a then
+    if p = p' then
       p'
-    else
+    else if p!a \<le> p'!a then
       let candidate = nearest_neighbor' (incr a k) k p r in
       min_by_squared_distance candidate p' p
+    else
+      undefined
   )"
 | "nearest_neighbor' a k p (Node l p' Leaf) = (
-    if p = p' \<or> p!a > p'!a then
+    if p = p' then
       p'
     else
       let candidate = nearest_neighbor' (incr a k) k p l in
@@ -347,25 +375,62 @@ proof (induction a k p kdt rule: nearest_neighbor'.induct)
   thus ?case by simp
 next
   case (2 a k p p')
-  thus ?case by (simp add: isin_kdt')
+  thus ?case by simp
 next
   case (3 a k p p' rl rp' rr)
-  thus ?case by (auto simp add: min_by_squared_distance_def Let_def)
+  thus ?case
+    apply (auto simp add: Let_def)
+    by (metis mbsqd)+
 next
   case (4 a k p ll lp' lr p')
-  thus ?case by (auto simp add: min_by_squared_distance_def Let_def)
+  thus ?case
+    apply (auto simp add: Let_def)
+    by (metis mbsqd)+
 next
   case ("5_1" a k p ll lp' lr p' rl rp' rr)
-  then show ?case sorry
+  thus ?case
+    apply (simp add: Let_def)
+    by (smt mbsqd)
 next
   case ("5_2" a k p ll lp' lr p' rl rp' rr)
-  then show ?case sorry
+  thus ?case
+    apply (simp add: Let_def)
+    by (smt mbsqd)
 qed
+
+lemma kdt_dim:
+  assumes "invar' a k kdt"
+  shows "\<forall>p \<in> set_kdt kdt. dim p = k"
+  using assms
+  sorry
 
 lemma nearest_neighbor'_optimum:
   assumes "invar' a k kdt" "dim p = k" "set_kdt kdt \<noteq> {}"
   shows "\<forall>q \<in> set_kdt kdt. squared_distance (nearest_neighbor' a k p kdt) p \<le> squared_distance q p"
-  using assms sorry
+  using assms
+proof (induction a k p kdt rule: nearest_neighbor'.induct)
+  case (1 a k p)
+  thus ?case by simp
+next
+  case (2 a k p p')
+  thus ?case by simp
+next
+  case (3 a k p p' ll lp' lr)
+  then show ?case apply (auto simp add: squared_distance_ge_0)
+    using kdt_dim squared_distance_ge_0 apply auto[1]
+    using kdt_dim squared_distance_ge_0 apply auto[1]
+       apply (auto simp add: min_by_squared_distance_def)
+    by (meson Un_iff less_imp_le not_less order_trans)+
+next
+  case (4 a k p v va vb p')
+  then show ?case sorry
+next
+  case ("5_1" a k p v va vb p' vc vd ve)
+  then show ?case sorry
+next
+  case ("5_2" a k p vc vd ve p' v va vb)
+  then show ?case sorry
+qed
 
 theorem nearest_neighbor':
   assumes "invar' a k kdt" "dim p = k" "set_kdt kdt \<noteq> {}"
