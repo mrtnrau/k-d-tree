@@ -5,12 +5,12 @@ begin
 
 text \<open>
   I did take "Functional Data Structures" last semester and verified the range query algorithm
-  as final project. Those sections are marked (LINE 125-242) and have already been graded but 
+  as final project. Those sections are marked (LINE 125-260) and have already been graded but
   are here for completeness only.
 
   The construction of balanced k-d trees and the nearest neighbor algorithm are new.
   There is of course some overlap in the initial definitions but I had to change the tree
-  by moving the data form the nodes to the leafs and storing the axis in the node to make the 
+  by moving the data form the nodes to the leafs and storing the axis in the node to make the
   nearest neighbor algorithm work and adjust the work from last semester accordingly.
 \<close>
 
@@ -75,7 +75,7 @@ declare dim_def[simp]
 
 
 
-text \<open> 
+text \<open>
   Abstraction function and invariant.
   Some lemmas for conveniently working with the invariant.
 \<close>
@@ -103,18 +103,18 @@ lemma invar_axis_lt_k:
   assumes "invar k (Node a s l r)"
   shows "a < k"
   using assms by simp
-  
+
 lemma invar_dim:
   assumes "invar k kdt"
   shows "\<forall>p \<in> set_kdt kdt. dim p = k"
   using assms by (induction kdt) auto
 
-lemma invar_l_le_a: 
+lemma invar_l_le_a:
   assumes "invar k (Node a s l r)"
   shows "\<forall>p \<in> set_kdt l. p!a \<le> s"
   using assms by simp
 
-lemma invar_r_gt_a: 
+lemma invar_r_gt_a:
   assumes "invar k (Node a s l r)"
   shows "\<forall>p \<in> set_kdt r. s < p!a"
   using assms by simp
@@ -178,12 +178,30 @@ text \<open>Auxiliary lemmas:\<close>
 lemma l_pibb_empty:
   assumes "invar k (Node a s l r)" "s < p\<^sub>0!a"
   shows "{ p \<in> set_kdt l. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
-  using assms invar_l_le_a point_in_bounding_box_def by fastforce
+  using assms
+proof -
+  have "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
+    using invar_l_le_a assms(1,2) by auto
+  hence "\<forall>p \<in> set_kdt l. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_k by blast
+  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+    using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
+qed
 
 lemma r_pibb_empty:
-  assumes "invar k (Node a s l r)" "s > p\<^sub>1!a "
+  assumes "invar k (Node a s l r)" "p\<^sub>1!a < s"
   shows "{ p \<in> set_kdt r. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
-  using assms invar_r_gt_a point_in_bounding_box_def by fastforce
+  using assms
+proof -
+  have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
+    using invar_r_gt_a assms(1,2) by auto 
+  hence "\<forall>p \<in> set_kdt r. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_k by blast
+  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+   using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
+qed
 
 
 
@@ -251,7 +269,7 @@ text \<open>
   closest to p by some metric.
 
   The chosen metric is the euclidean distance between two points.
- 
+
   To avoid working with roots I will work with the squared euclidean distance.
 \<close>
 
@@ -363,8 +381,8 @@ text \<open>
                                 s
           c                     |
                                 |
-               p                |     
-                                |   
+               p                |
+                                |
                                 |  q
                                 |
 
@@ -376,8 +394,8 @@ text \<open>
                                 s
           c                     |
                                 |
-                          p     |  q'   
-                                |   
+                          p     |  q'
+                                |
                                 |  q
                                 |
 
@@ -450,7 +468,7 @@ lemma nearest_neighbor_minimal:
   using assms
 proof (induction kdt)
   case (Leaf p)
-  thus ?case by simp                                      
+  thus ?case by simp
 next
   case (Node a s l r)
   let ?candidate_l = "nearest_neighbor k p l"
@@ -472,7 +490,7 @@ next
     hence "\<forall>q \<in> set_kdt r. sqed p ?candidate_l \<le> sqed p q"
       using Node.prems(1) assms(2) cutoff_r invar_axis_lt_k invar_l nearest_neighbor_in_kdt by blast
     thus ?thesis using A Node.prems IHL
-      apply (auto) 
+      apply (auto)
       by (metis assms(2) invar_dim nearest_neighbor_in_kdt sqed_com)
   next
     case B
@@ -482,8 +500,8 @@ next
     case C
     hence "\<forall>q \<in> set_kdt l. sqed p ?candidate_r \<le> sqed p q"
       using Node.prems(1) assms(2) cutoff_l invar_r invar_axis_lt_k nearest_neighbor_in_kdt by blast
-    thus ?thesis using C Node.prems IHR 
-      apply (auto) 
+    thus ?thesis using C Node.prems IHR
+      apply (auto)
       by (metis (mono_tags, lifting) assms(2) invar_dim nearest_neighbor_in_kdt sqed_com)
   next
     case D
@@ -528,7 +546,7 @@ termination
   apply size_change
   done
 
-(* 
+(*
 fun partition :: "axis \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> (point list * point list)" where
   "partition _ _ [] = ([], [])"
 | "partition a p (x # xs) = (
