@@ -5,7 +5,7 @@ begin
 
 text \<open>
   I did take "Functional Data Structures" last semester and verified the range query algorithm
-  as final project. Those sections are marked (LINE 130-286) and should not be graded but 
+  as final project. Those sections are marked (LINE 130-286) and have already been graded but 
   are here for completeness only.
 
   The construction of balanced k-d trees and the nearest neighbor algorithm are new.
@@ -185,32 +185,32 @@ fun query_area' :: "axis \<Rightarrow> dimension \<Rightarrow> point \<Rightarro
 text \<open>Auxiliary lemmas:\<close>
 
 lemma l_pibb_empty:
-  assumes "invar' a k kdt" "kdt = Node l s r" "is_bounding_box k p\<^sub>0 p\<^sub>1" "s < p\<^sub>0!a" "a < k"
+  assumes "invar' a k (Node l s r)" "s < p\<^sub>0!a" "a < k"
   shows "{ p \<in> set_kdt l. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
   using assms
 proof -
   have "\<forall>q \<in> set_kdt l. q!a \<le> s"
-    using assms(1,2) invar'_l_le_a by blast
+    using assms(1) invar'_l_le_a by blast
   hence "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
-    using assms(4) by auto
+    using assms(2) by auto
   hence "\<forall>p \<in> set_kdt l. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(5) by blast
+    using assms(3) by blast
   hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
     using point_in_bounding_box_def by fastforce
   thus ?thesis by blast
 qed
 
 lemma r_pibb_empty:
-  assumes "invar' a k kdt" "kdt = Node l s r" "is_bounding_box k p\<^sub>0 p\<^sub>1" "s > p\<^sub>1!a " "a < k"
+  assumes "invar' a k (Node l s r)" "s > p\<^sub>1!a " "a < k"
   shows "{ p \<in> set_kdt r. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
   using assms
 proof -
   have "\<forall>q \<in> set_kdt r. s < q!a"
-    using assms(1,2) invar'_r_gt_a by blast
+    using assms(1) invar'_r_gt_a by blast
   hence "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
-    using assms(4) by auto
+    using assms(2) by auto
   hence "\<forall>p \<in> set_kdt r. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(5) by blast
+    using assms(3) by blast
   hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
    using point_in_bounding_box_def by fastforce
   thus ?thesis by blast
@@ -222,7 +222,7 @@ qed
 text \<open>The simplified main theorem:\<close>
 
 theorem query_area':
-  assumes "invar' a k kdt" "is_bounding_box k p\<^sub>0 p\<^sub>1" "a < k"
+  assumes "invar' a k kdt" "a < k"
   shows "query_area' a k p\<^sub>0 p\<^sub>1 kdt = { p \<in> set_kdt kdt. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 }"
   using assms l_pibb_empty r_pibb_empty
   by (induction kdt arbitrary: a) (auto simp add: Let_def)
@@ -389,7 +389,7 @@ fun nearest_neighbor' :: "axis \<Rightarrow> dimension \<Rightarrow> point \<Rig
 
 
 
-text \<open>First part of main theorem as warm up.\<close>
+text \<open>First part of main theorem.\<close>
 
 lemma nearest_neighbor'_in_kdt:
   assumes "invar' a k kdt" "dim p = k"
@@ -406,7 +406,7 @@ text \<open>
   Some intuition about this step:
 
   Scenario A:
-  We are searching for the nearest neighbor of point p and have found candidate c.
+  We are searching for the nearest neighbor of point p and have found candidate c at axis a.
   Since sqed c p <= sqed' s (p!a) we do not need to check the right side.
 
                                 s
@@ -419,7 +419,7 @@ text \<open>
 
 
   Scenario B:
-  We are searching for the nearest neighbor of point p and have found candidate c.
+  We are searching for the nearest neighbor of point p and have found candidate c at axis a.
   Since sqed c p > sqed' s (p!a) we do need to check the right side.
 
                                 s
@@ -430,8 +430,8 @@ text \<open>
                                 |  q
                                 |
 
-  The minimize_sqed lemma moves q to q' by setting all coordinates of q' (except the current axis)
-  to the coordinates of p and so minimizes the distance between p and q'.
+  The minimize_sqed lemma moves q to q' by setting all coordinates of q' (except the current axis a)
+  to the coordinates of p and minimizes the distance between p and q'.
 
   On the symmetric case the inequality is strict since the left subtree contains points <= s and the
   right subtree contains points > s.
@@ -446,7 +446,8 @@ lemma minimize_sqed:
   by (smt sqed'_ge_0)
 
 lemma cutoff_r:
-  assumes "invar' a k (Node l s r)" "p!a \<le> s" "c \<in> set_kdt l" "dim p = k" "a < k" "sqed p c \<le> sqed' s (p!a)"
+  assumes "invar' a k (Node l s r)" "dim p = k" "a < k"
+  assumes "p!a \<le> s" "sqed p c \<le> sqed' s (p!a)"
   shows "\<forall>q \<in> set_kdt r. sqed p c \<le> sqed p q"
 proof standard
   fix q
@@ -456,19 +457,20 @@ proof standard
 
   (* The distance between p and q is greater or equal the minimized distance between p and q' *)
   have "sqed p q \<ge> sqed' (p!a) (?q'!a)"
-    using A minimize_sqed assms(1,4,5) invar'_dim invar'_r by blast
+    using A minimize_sqed assms(1,2,3) invar'_dim invar'_r by blast
   (* Hence it is greater or equal to the distance from p to s + the distance from s to q' *)
   hence "sqed p q \<ge> sqed' (p!a) s + sqed' s (q!a)"
-    by (smt A assms(1,2,4,5) dim_def nth_list_update_eq invar'_r_gt_a sqed'_split)
+    by (smt A assms(1,2,3,4) dim_def nth_list_update_eq invar'_r_gt_a sqed'_split)
   (* Hence it is greater or equal to the distance from p to c since sqed' s (q!a) \<ge> 0 *)
   hence "sqed p q \<ge> sqed p c"
-    by (smt assms(6) sqed'_com sqed'_ge_0)
+    by (smt assms(5) sqed'_com sqed'_ge_0)
 
   thus "sqed p c \<le> sqed p q" by blast
 qed
 
 lemma cutoff_l:
-  assumes "invar' a k (Node l s r)" "p!a > s" "c \<in> set_kdt r" "dim p = k" "a < k" "sqed p c < sqed' s (p!a)"
+  assumes "invar' a k (Node l s r)" "dim p = k" "a < k"
+  assumes "p!a > s" "sqed p c < sqed' s (p!a)"
   shows "\<forall>q \<in> set_kdt l. sqed p c \<le> sqed p q"
 proof standard
   fix q
@@ -477,11 +479,11 @@ proof standard
   let ?q' = "p[a := (q!a)]"
 
   have "sqed p q \<ge> sqed' (p!a) (?q'!a)"
-    using A minimize_sqed assms(1,4,5) invar'_dim invar'_l by blast
+    using A minimize_sqed invar'_dim invar'_l assms(1,2,3) by blast
   hence "sqed p q \<ge> sqed' (p!a) s + sqed' s (q!a)"
-    by (smt A assms(1,2,4,5) dim_def invar'_l_le_a nth_list_update_eq sqed'_com sqed'_split)
+    by (smt A assms(1,2,3,4) dim_def invar'_l_le_a nth_list_update_eq sqed'_com sqed'_split)
   hence "sqed p q \<ge> sqed p c"
-    by (smt assms(6) sqed'_com sqed'_ge_0)
+    by (smt assms(5) sqed'_com sqed'_ge_0)
 
   thus "sqed p c \<le> sqed p q" by blast
 qed
@@ -507,23 +509,36 @@ next
     using Node.IH(1) Node.prems(1,3) assms(2) by auto
   have IHR: "\<forall>q \<in> set_kdt r. sqed ?candidate_r p \<le> sqed q p"
     using Node.IH(2) Node.prems(1,3) assms(2) by auto
- 
-  have CUTOFF_L: "s < p!a \<longrightarrow> sqed p ?candidate_r < sqed' s (p!a) \<longrightarrow> (\<forall>q \<in> set_kdt l. sqed p ?candidate_r \<le> sqed p q)"
-    using Node.prems(1,3) assms(2) cutoff_l invar'_r nearest_neighbor'_in_kdt by blast
-  have CUTOFF_R: "p!a \<le> s \<longrightarrow> sqed p ?candidate_l \<le> sqed' s (p!a) \<longrightarrow> (\<forall>q \<in> set_kdt r. sqed p ?candidate_l \<le> sqed p q)"
-    using Node.prems(1,3) assms(2) cutoff_r invar'_l nearest_neighbor'_in_kdt by blast
 
-  have LY: "p!a \<le> s \<longrightarrow> sqed p ?candidate_l \<le> sqed' s (p!a) \<longrightarrow> ?case"
-    using Node.prems IHL CUTOFF_R apply (auto) by (metis assms(2) invar'_dim nearest_neighbor'_in_kdt sqed_com)
-  have LN: "p!a \<le> s \<longrightarrow> \<not>sqed p ?candidate_l \<le> sqed' s (p!a) \<longrightarrow> ?case"
-    using Node.prems IHL IHR by (auto simp add: min_by_sqed_def Let_def)
-
-  have RY: "s < p!a \<longrightarrow> sqed p ?candidate_r < sqed' s (p!a) \<longrightarrow> ?case"
-    using Node.prems IHR CUTOFF_L apply (auto) by (metis (mono_tags, lifting) assms(2) invar'_dim nearest_neighbor'_in_kdt sqed_com)
-  have RN: "s < p!a \<longrightarrow> \<not>sqed p ?candidate_r < sqed' s (p!a) \<longrightarrow> ?case"
-    using Node.prems IHL IHR by (auto simp add: min_by_sqed_def Let_def)
-
-  show ?case using LY LN RY RN by argo
+  consider (A) "p!a \<le> s \<and> sqed p ?candidate_l \<le> sqed' s (p!a)"
+         | (B) "p!a \<le> s \<and> \<not>sqed p ?candidate_l \<le> sqed' s (p!a)"
+         | (C) "s < p!a \<and> sqed p ?candidate_r < sqed' s (p!a)"
+         | (D) "s < p!a \<and> \<not>sqed p ?candidate_r < sqed' s (p!a)"
+    by argo
+  thus ?case
+  proof cases
+    case A
+    hence "\<forall>q \<in> set_kdt r. sqed p ?candidate_l \<le> sqed p q"
+      using Node.prems(1,3) assms(2) cutoff_r invar'_l nearest_neighbor'_in_kdt by blast
+    thus ?thesis using A Node.prems IHL
+      apply (auto) 
+      by (metis assms(2) invar'_dim nearest_neighbor'_in_kdt sqed_com)
+  next
+    case B
+    thus ?thesis using Node.prems IHL IHR
+      by (auto simp add: min_by_sqed_def Let_def)
+  next
+    case C
+    hence "\<forall>q \<in> set_kdt l. sqed p ?candidate_r \<le> sqed p q"
+      using Node.prems(1,3) assms(2) cutoff_l invar'_r nearest_neighbor'_in_kdt by blast
+    thus ?thesis using C Node.prems IHR 
+      apply (auto) 
+      by (metis (mono_tags, lifting) assms(2) invar'_dim nearest_neighbor'_in_kdt sqed_com)
+  next
+    case D
+    thus ?thesis using Node.prems IHL IHR
+      by (auto simp add: min_by_sqed_def Let_def)
+  qed
 qed
 
 theorem nearest_neighbor':
@@ -561,6 +576,34 @@ theorem nearest_neighbor:
 
 
 (* *** *)
+
+fun partition :: "nat \<Rightarrow> nat list \<Rightarrow> (nat list * nat list)" where
+  "partition _ [] = ([], [])"
+| "partition p (x # xs) = (
+    let (ls, hs) = partition p xs in
+    if x \<le> p then
+      (x # ls, hs)
+    else
+      (ls, x # hs)
+  )"
+
+fun select :: "nat list \<Rightarrow> nat \<Rightarrow> nat" where
+  "select [] _ = undefined"
+| "select [x] _ = x"
+| "select (x # xs) k = (
+    let (ls, hs) = partition x xs in
+    if k = length xs then
+      x
+    else if k < length xs then
+      select ls k
+    else
+      select hs (k - length ls - 1)
+  )"
+termination
+  apply size_change
+  done
+
+(* 
 fun partition :: "axis \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> (point list * point list)" where
   "partition _ _ [] = ([], [])"
 | "partition a p (x # xs) = (
@@ -581,7 +624,7 @@ fun select :: "axis \<Rightarrow> point list \<Rightarrow> nat \<Rightarrow> poi
     else if k < length ps then
       select a lps k
     else
-      select a hps (k - length ps)
+      select a hps (k - length lps - 1)
   )"
 termination
   apply size_change
@@ -608,5 +651,6 @@ next
   show "set ps \<supseteq> set (fst (partition a p ps)) \<union> set (snd (partition a p ps))"
   by (induction ps) (auto split: prod.splits)
 qed
+*)
 
 end
