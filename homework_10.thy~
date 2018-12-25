@@ -5,7 +5,7 @@ begin
 
 text \<open>
   I did take "Functional Data Structures" last semester and verified the range query algorithm
-  as final project. Those sections are marked (LINE 125-242) and have already been graded but
+  as final project. Those sections are marked (LINE 125-260) and have already been graded but
   are here for completeness only.
 
   The construction of balanced k-d trees and the nearest neighbor algorithm are new.
@@ -178,12 +178,30 @@ text \<open>Auxiliary lemmas:\<close>
 lemma l_pibb_empty:
   assumes "invar k (Node a s l r)" "s < p\<^sub>0!a"
   shows "{ p \<in> set_kdt l. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
-  using assms invar_l_le_a point_in_bounding_box_def by fastforce
+  using assms
+proof -
+  have "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
+    using invar_l_le_a assms(1,2) by auto
+  hence "\<forall>p \<in> set_kdt l. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_k by blast
+  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+    using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
+qed
 
 lemma r_pibb_empty:
-  assumes "invar k (Node a s l r)" "s > p\<^sub>1!a "
+  assumes "invar k (Node a s l r)" "p\<^sub>1!a < s"
   shows "{ p \<in> set_kdt r. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
-  using assms invar_r_gt_a point_in_bounding_box_def by fastforce
+  using assms
+proof -
+  have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
+    using invar_r_gt_a assms(1,2) by auto
+  hence "\<forall>p \<in> set_kdt r. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_k by blast
+  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+   using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
+qed
 
 
 
