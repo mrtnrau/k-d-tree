@@ -195,7 +195,7 @@ lemma r_pibb_empty:
   using assms
 proof -
   have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
-    using invar_r_gt_a assms(1,2) by auto 
+    using invar_r_gt_a assms(1,2) by auto
   hence "\<forall>p \<in> set_kdt r. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
     using assms(1) invar_axis_lt_k by blast
   hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
