@@ -34,7 +34,7 @@ text \<open>
 
    0/x-axis:         N 0 2        N 0 4      (9,6)    N 0 8
 
-                 (2,3) (7, 2)  (4,7) (5,4)        (8,7) (9,9)
+                 (2,3) (7, 2)  (4,7) (5,4)         (8,7) (9,9)
 
   Leaf (4,7) is at its current position because 4 <= 7, 7 > 3 and 4 <= 4.
 
@@ -86,7 +86,7 @@ fun set_kdt :: "kdt \<Rightarrow> point set" where
 
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar k (Leaf p) \<longleftrightarrow> dim p = k"
-| "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. p!a > s) \<and>
+| "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. p!a \<ge> s) \<and>
     invar k l \<and> invar k r \<and> a < k"
 
 lemma invar_l:
@@ -116,7 +116,7 @@ lemma invar_l_le_a:
 
 lemma invar_r_gt_a:
   assumes "invar k (Node a s l r)"
-  shows "\<forall>p \<in> set_kdt r. s < p!a"
+  shows "\<forall>p \<in> set_kdt r. s \<le> p!a"
   using assms by simp
 
 
@@ -164,7 +164,7 @@ fun query_area' :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarr
 | "query_area' k p\<^sub>0 p\<^sub>1 (Node a s l r) = (
     if s < p\<^sub>0!a then
       query_area' k p\<^sub>0 p\<^sub>1 r
-    else if s > p\<^sub>1!a then
+    else if p\<^sub>1!a < s then
       query_area' k p\<^sub>0 p\<^sub>1 l
     else
       query_area' k p\<^sub>0 p\<^sub>1 l \<union> query_area' k p\<^sub>0 p\<^sub>1 r
@@ -348,7 +348,7 @@ fun nearest_neighbor :: "dimension \<Rightarrow> point \<Rightarrow> kdt \<Right
         min_by_sqed candidate candidate' p
     else
       let candidate = nearest_neighbor k p r in
-      if sqed p candidate < sqed' s (p!a) then
+      if sqed p candidate \<le> sqed' s (p!a) then
         candidate
       else
         let candidate' = nearest_neighbor k p l in
@@ -401,9 +401,6 @@ text \<open>
 
   The minimize_sqed lemma moves q to q' by setting all coordinates of q' (except the current axis a)
   to the coordinates of p and minimizes the distance between p and q'.
-
-  On the symmetric case the inequality is strict since the left subtree contains points <= s and the
-  right subtree contains points > s.
 \<close>
 
 lemma minimize_sqed:
@@ -439,7 +436,7 @@ qed
 
 lemma cutoff_l:
   assumes "invar k (Node a s l r)" "dim p = k"
-  assumes "p!a > s" "sqed p c < sqed' s (p!a)"
+  assumes "s \<le> p!a" "sqed p c \<le> sqed' s (p!a)"
   shows "\<forall>q \<in> set_kdt l. sqed p c \<le> sqed p q"
 proof standard
   fix q
@@ -481,8 +478,8 @@ next
 
   consider (A) "p!a \<le> s \<and> sqed p ?candidate_l \<le> sqed' s (p!a)"
          | (B) "p!a \<le> s \<and> \<not>sqed p ?candidate_l \<le> sqed' s (p!a)"
-         | (C) "s < p!a \<and> sqed p ?candidate_r < sqed' s (p!a)"
-         | (D) "s < p!a \<and> \<not>sqed p ?candidate_r < sqed' s (p!a)"
+         | (C) "s < p!a \<and> sqed p ?candidate_r \<le> sqed' s (p!a)"
+         | (D) "s < p!a \<and> \<not>sqed p ?candidate_r \<le> sqed' s (p!a)"
     by argo
   thus ?case
   proof cases
@@ -499,7 +496,7 @@ next
   next
     case C
     hence "\<forall>q \<in> set_kdt l. sqed p ?candidate_r \<le> sqed p q"
-      using Node.prems(1) assms(2) cutoff_l invar_r invar_axis_lt_k nearest_neighbor_in_kdt by blast
+      using Node.prems(1) assms(2) cutoff_l invar_r invar_axis_lt_k nearest_neighbor_in_kdt by smt
     thus ?thesis using C Node.prems IHR
       apply (auto)
       by (metis (mono_tags, lifting) assms(2) invar_dim nearest_neighbor_in_kdt sqed_com)

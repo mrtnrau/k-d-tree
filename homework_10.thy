@@ -326,6 +326,13 @@ lemma sqed_eq_0[simp]:
   shows "sqed p\<^sub>0 p\<^sub>1 = 0"
   using assms by(induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) auto
 
+lemma sqed_eq_0_rev:
+  assumes "dim p\<^sub>0 = dim p\<^sub>1" "sqed p\<^sub>0 p\<^sub>1 = 0"
+  shows "p\<^sub>0 = p\<^sub>1"
+  using assms
+  apply (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct)
+  by (auto simp add: add_nonneg_eq_0_iff sqed'_ge_0 sqed_ge_0)
+
 lemma sqed_com:
   assumes "dim p\<^sub>0 = dim p\<^sub>1"
   shows "sqed p\<^sub>0 p\<^sub>1 = sqed p\<^sub>1 p\<^sub>0"
@@ -511,6 +518,11 @@ theorem nearest_neighbor:
   assumes "invar k kdt" "dim p = k"
   shows "(\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor k p kdt) p \<le> sqed q p) \<and> nearest_neighbor k p kdt \<in> set_kdt kdt"
   using assms nearest_neighbor_in_kdt nearest_neighbor_minimal invar_axis_lt_k by simp
+
+corollary nearest_neighbor_refl:
+  assumes "invar k kdt" "p \<in> set_kdt kdt"
+  shows "nearest_neighbor k p kdt = p"
+  using assms by (smt invar_dim nearest_neighbor sqed_eq_0 sqed_eq_0_rev sqed_ge_0)
 
 
 
