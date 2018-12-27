@@ -5,13 +5,13 @@ begin
 
 text \<open>
   I did take "Functional Data Structures" last semester and verified the range query algorithm
-  as final project. Those sections are marked (LINE 125-260) and have already been graded but
+  as final project. Those sections are marked (LINE 125-287) and have already been graded but
   are here for completeness only.
 
   The construction of balanced k-d trees and the nearest neighbor algorithm are new.
   There is of course some overlap in the initial definitions but I had to change the tree
   by moving the data form the nodes to the leafs and storing the axis in the node to make the
-  nearest neighbor algorithm work and adjust the work from last semester accordingly.
+  nearest neighbor and construction algorithm work and adjust the work from last semester accordingly.
 \<close>
 
 text \<open>
@@ -256,6 +256,33 @@ theorem query_area:
   assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
   shows "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> x!i \<and> x!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i) }"
   using assms pibb tbbibb query_area' by (auto simp add: query_area_def)
+
+corollary
+  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = query_area q\<^sub>1 q\<^sub>0 kdt"
+  using assms query_area by auto
+
+corollary
+  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1" "p \<in> set_kdt kdt" "\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i)"
+  shows "p \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
+  using assms query_area by blast
+
+corollary
+  assumes "invar k kdt" "k = dim q\<^sub>0" "q\<^sub>0 = q\<^sub>1" "q\<^sub>0 \<in> set_kdt kdt"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { q\<^sub>0 }"
+proof -
+  have QA: "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. q\<^sub>0!i = x!i }"
+    using query_area assms(1,2,3) by auto
+
+  have A: "\<forall>p \<in> query_area q\<^sub>0 q\<^sub>1 kdt. dim p = k"
+    using assms(1) QA invar_dim by blast
+  have B: "q\<^sub>0 \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
+    using assms(4) QA by blast
+  have C: "\<forall>p \<noteq> q\<^sub>0. dim p = k \<longrightarrow> (\<exists>i < k. q\<^sub>0!i \<noteq> p!i)"
+    using assms(2) nth_equalityI by fastforce
+
+  show ?thesis using QA A B C by blast
+qed
 
 (* THIS IS FROM LAST SEMESTER END *)
 
@@ -519,7 +546,7 @@ theorem nearest_neighbor:
   shows "(\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor k p kdt) p \<le> sqed q p) \<and> nearest_neighbor k p kdt \<in> set_kdt kdt"
   using assms nearest_neighbor_in_kdt nearest_neighbor_minimal invar_axis_lt_k by simp
 
-corollary nearest_neighbor_refl:
+corollary
   assumes "invar k kdt" "p \<in> set_kdt kdt"
   shows "nearest_neighbor k p kdt = p"
   using assms by (smt invar_dim nearest_neighbor sqed_eq_0 sqed_eq_0_rev sqed_ge_0)
@@ -553,7 +580,7 @@ fun select :: "nat list \<Rightarrow> nat \<Rightarrow> nat" where
   )"
 termination
   apply size_change
-  done
+  sorry
 
 (*
 fun partition :: "axis \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> (point list * point list)" where
