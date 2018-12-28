@@ -1,6 +1,7 @@
 theory homework_10
 imports
   Complex_Main
+  "HOL-Library.Multiset"
 begin
 
 text \<open>
@@ -556,80 +557,91 @@ corollary
 
 (* *** *)
 
-fun partition :: "nat \<Rightarrow> nat list \<Rightarrow> (nat list * nat list)" where
-  "partition _ [] = ([], [])"
-| "partition p (x # xs) = (
-    let (ls, hs) = partition p xs in
-    if x \<le> p then
-      (x # ls, hs)
-    else
-      (ls, x # hs)
-  )"
-
-fun select :: "nat list \<Rightarrow> nat \<Rightarrow> nat" where
-  "select [] _ = undefined"
-| "select [x] _ = x"
-| "select (x # xs) k = (
-    let (ls, hs) = partition x xs in
-    if k = length xs then
-      x
-    else if k < length xs then
-      select ls k
-    else
-      select hs (k - length ls - 1)
-  )"
-termination
-  apply size_change
-  sorry
-
-(*
-fun partition :: "axis \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> (point list * point list)" where
-  "partition _ _ [] = ([], [])"
-| "partition a p (x # xs) = (
-    let (as, bs) = partition a p xs in
-    if x!a \<le> p!a then
-      (x # as, bs)
-    else
-      (as, x # bs)
-  )"
-
 fun select :: "axis \<Rightarrow> point list \<Rightarrow> nat \<Rightarrow> point" where
   "select _ [] _ = undefined"
 | "select _ [p] _ = p"
 | "select a (p # ps) k = (
-    let (lps, hps) = partition a p ps in
-    if k = length ps then
+    let lps = filter (\<lambda>p'. p'!a \<le> p!a) ps in
+    let hps = filter (\<lambda>p'. p!a < p'!a) ps in
+    if k = length lps then
       p
-    else if k < length ps then
+    else if k < length lps then
       select a lps k
     else
       select a hps (k - length lps - 1)
   )"
-termination
-  apply size_change
-  done
 
-lemma partition_left_lt_or_eq:
-  "\<forall>p' \<in> set (fst (partition a p ps)). p'!a \<le> p!a"
-  by (induction ps) (auto split: prod.splits)
+lemma aux0:
+  "mset (filter p xs) \<subseteq># mset xs"
+  apply (induction xs)
+  apply (auto)
+  by (metis add_mset_add_single mset_subset_eq_add_left subset_mset.add_increasing2)
 
-lemma partition_right_gt:
-  "\<forall>p' \<in> set (snd (partition a p ps)). p'!a > p!a"
-  by (induction ps) (auto split: prod.splits)
+lemma aux00:
+  assumes "mset ys \<subseteq># mset xs"
+  shows "mset ys \<subseteq># mset (x # xs)"
+  using assms
+  apply (induction ys)
+  apply (auto)
+  by (metis mset_subset_eq_exists_conv union_mset_add_mset_right)
 
-lemma partition_length:
-  "length ps = length (fst (partition a p ps)) + length (snd (partition a p ps))"
-  by (induction ps) (auto split: prod.splits)
+lemma aux1:
+  assumes "mset ys \<subseteq># mset xs"
+  shows "mset (filter p ys) \<subseteq># mset (filter p xs)"
+  using assms
+  apply (induction xs arbitrary: ys)
+  apply (auto)
+  by (smt filter_mset_add_mset mset_filter multiset_filter_mono)+
 
-lemma partition:
-  "set ps = set (fst (partition a p ps)) \<union> set (snd (partition a p ps))"
-proof standard
-  show "set ps \<subseteq> set (fst (partition a p ps)) \<union> set (snd (partition a p ps))"
-    by (induction ps) (auto split: prod.splits)
+lemma aux2:
+  assumes "mset ys \<subseteq># mset xs"
+  shows "length (filter p ys) \<le> length (filter p xs)"
+  using assms aux1 by (metis size_mset size_mset_mono)
+
+lemma select:
+  assumes "k < length ps"
+  shows "length (filter (\<lambda>q. q ! a \<le> select a ps k ! a) ps) \<ge> k"
+  using assms
+proof (induction a ps k rule: select.induct)
+  case (1 a k)
+  thus ?case by simp
 next
-  show "set ps \<supseteq> set (fst (partition a p ps)) \<union> set (snd (partition a p ps))"
-  by (induction ps) (auto split: prod.splits)
+  case (2 a p k)
+  thus ?case by simp
+next
+  case (3 a p p' ps' k)
+
+  thm "3.prems"
+  thm "3.IH"
+
+  let ?pps = "p # p' # ps'"
+  let ?lps = "filter (\<lambda>q. q!a \<le> p!a) (p' # ps')"
+  let ?hps = "filter (\<lambda>q. p!a < q!a) (p' # ps')"
+
+  consider (A) "k = length ?lps" | (B) "k < length ?lps" | (C) "k > length ?lps"
+    by fastforce
+  thus ?case
+  proof cases
+    case A
+    thus ?thesis by simp
+  next
+    case B
+
+    have "mset ?lps \<subseteq># mset ?pps"
+      using aux0 aux00 by fast
+
+    have "length (filter (\<lambda>q. q!a \<le> select a ?pps k!a) ?pps) \<ge> length (filter (\<lambda>q. q!a \<le> select a ?lps k!a) ?pps)"
+      using B by auto
+    hence "length (filter (\<lambda>q. q!a \<le> select a ?pps k!a) ?pps) \<ge> length (filter (\<lambda>q. q!a \<le> select a ?lps k!a) ?lps)"
+      using \<open>mset ?lps \<subseteq># mset ?pps\<close> aux2 dual_order.trans by blast
+    hence "length (filter (\<lambda>q. q!a \<le> select a ?pps k!a) ?pps) \<ge> k"
+      using B "3.IH"(1) by presburger
+    thus ?thesis by blast
+  next
+    case C
+    then show ?thesis sorry
+  qed
 qed
-*)
+
 
 end
