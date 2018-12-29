@@ -1,6 +1,7 @@
 theory homework_10
 imports
   Complex_Main
+  "HOL-Library.Multiset"
 begin
 
 text \<open>
@@ -556,86 +557,118 @@ corollary
 
 (* *** *)
 
-fun partition :: "axis \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> (point list * point list)" where
-  "partition _ _ [] = ([], [])"
-| "partition a p (x # xs) = (
-    let (as, bs) = partition a p xs in
-    if x!a \<le> p!a then
-      (x # as, bs)
-    else
-      (as, x # bs)
+fun h :: "kdt \<Rightarrow> nat" where
+  "h (Leaf _) = 0"
+| "h (Node _ _ l r) = max (h l) (h r) + 1"
+
+fun mh :: "kdt \<Rightarrow> nat" where
+  "mh (Leaf _) = 0"
+| "mh (Node _ _ l r) = min (h l) (h r) + 1"
+
+definition balanced :: "kdt \<Rightarrow> bool" where
+  "balanced kdt \<longleftrightarrow> h kdt - mh kdt \<le> 1"
+
+definition partition :: "axis \<Rightarrow> point list \<Rightarrow> (point list * split * point list)" where
+  "partition a ps = (
+    let sps = sort_key (\<lambda>p. p!a) ps in
+    let lps = take (length ps div 2) sps in
+    let hps = drop (length ps div 2) sps in
+    (lps, (hd hps) ! a, hps)
   )"
 
-lemma partition_l_lt_or_eq:
-  "\<forall>p' \<in> set (fst (partition a p ps)). p'!a \<le> p!a"
-  by (induction ps) (auto split: prod.splits)
+lemma partition_l_le:
+  assumes "0 < length ps" "(lps, s, hps) = partition a ps" "\<forall>p \<in> set ps. dim p = k" "a < k"
+  shows "\<forall>p \<in> set lps. p!a \<le> s"
+  using assms sorry
 
-lemma partition_r_gt:
-  "\<forall>p' \<in> set (snd (partition a p ps)). p'!a > p!a"
-  by (induction ps) (auto split: prod.splits)
+lemma partition_r_ge:
+  assumes "0 < length ps" "(lps, s, hps) = partition a ps" "\<forall>p \<in> set ps. dim p = k" "a < k"
+  shows "\<forall>p \<in> set hps. s \<le> p!a"
+  using assms sorry
 
-lemma partition_length:
-  "length ps = length (fst (partition a p ps)) + length (snd (partition a p ps))"
-  by (induction ps) (auto split: prod.splits)
+lemma partition_set:
+  assumes "0 < length ps" "(lps, s, hps) = partition a ps" "\<forall>p \<in> set ps. dim p = k" "a < k"
+  shows "set lps \<union> set hps = set ps"
+  using assms
+  apply (induction ps)
+  apply (auto simp add: partition_def Let_def simp del: sort_key_simps)
+  apply (metis in_set_takeD set_ConsD set_sort)
+  apply (metis in_set_dropD set_ConsD set_sort)
+  apply (metis Un_iff append_take_drop_id list.set_intros(1) set_append set_sort)
+  by (metis Un_iff append_take_drop_id list.set_intros(2) set_append set_sort)
+  
 
-lemma partition:
-  "set ps = set (fst (partition a p ps)) \<union> set (snd (partition a p ps))"
-proof standard
-  show "set ps \<subseteq> set (fst (partition a p ps)) \<union> set (snd (partition a p ps))"
-    by (induction ps) (auto split: prod.splits)
-next
-  show "set ps \<supseteq> set (fst (partition a p ps)) \<union> set (snd (partition a p ps))"
-  by (induction ps) (auto split: prod.splits)
-qed
-
-function (sequential) select :: "axis \<Rightarrow> point list \<Rightarrow> nat \<Rightarrow> (point list * point * point list)" where
-  "select _ [] _ = undefined"
-| "select _ [p] _ = ([], p, [])"
-| "select a (p # ps) k = (
-    let (lps, hps) = partition a p ps in
-    if k = length lps then
-      (lps, p, hps)
-    else if k < length lps then
-      let (llps, x, lhps) = select a lps k in
-      (llps, x, lhps @ p # ps) 
-    else
-      let (hlps, x, hhps) = select a hps (k - length lps - 1) in
-      (hlps @ p # hlps, x, hhps)
+function (sequential) build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarrow> kdt" where
+  "build' _ _ [] = undefined"
+| "build' _ _ [p] = Leaf p"
+| "build' a k ps = (
+    let (lps, s, hps) = partition a ps in
+    Node a s (build' ((a + 1) mod k) k lps) (build' ((a + 1) mod k) k hps)
   )"
-by pat_completeness auto
+  by pat_completeness auto
 termination
-  apply size_change
   sorry
 
-lemma select_set:
-  assumes "k < length ps" "(lps, p, hps) = select a ps k"
-  shows "set ps \<union> {p} \<union> set hps = set ps"
+fun build :: "point list \<Rightarrow> kdt" where
+  "build [] = undefined"
+| "build (p # ps) = build' 0 (dim p) (p # ps)"
+
+thm sort_key_simps
+thm sort_key_def
+
+find_theorems sort_key
+
+lemma build'_set:
+  assumes "0 < length ps" "\<forall>p \<in> set ps. dim p = k" "a < k"
+  shows "set_kdt (build' a k ps) = set ps"
+  using assms sorry
+
+
+
+fun select :: "axis \<Rightarrow> point list \<Rightarrow> nat \<Rightarrow> point" where
+  "select _ [] _ = undefined"
+| "select _ [p] _ = p"
+| "select a (p # ps) k = (
+    let lps = filter (\<lambda>p'. p'!a \<le> p!a) ps in
+    let hps = filter (\<lambda>p'. p!a < p'!a) ps in
+    if k = length lps then
+      p
+    else if k < length lps then
+      select a lps k
+    else
+      select a hps (k - length lps - 1)
+  )"
+
+lemma select:
+  assumes "k < length ps" "select a ps k = p"
+  shows "(\<exists>lps. (\<forall>q \<in> set lps. q!a \<le> p!a) \<and> length lps = k)"
+  using assms sorry
+
+lemma aux0:
+  "mset (filter p xs) \<subseteq># mset xs"
+  apply (induction xs)
+  apply (auto)
+  by (metis add_mset_add_single mset_subset_eq_add_left subset_mset.add_increasing2)
+
+lemma aux00:
+  assumes "mset ys \<subseteq># mset xs"
+  shows "mset ys \<subseteq># mset (x # xs)"
   using assms
-  apply (induction a ps k rule: select.induct)
-    apply (auto split: prod.splits if_splits)
-           apply (metis UnCI partition prod.sel(2))
-          apply (metis UnCI partition prod.sel(2))
-  sledgehammer
+  apply (induction ys)
+  apply (auto)
+  by (metis mset_subset_eq_exists_conv union_mset_add_mset_right)
 
-lemma select_lps_le_p:
-  assumes "k < length ps" "(lps, p, hps) = select a ps k"
-  shows "\<forall>p' \<in> set lps. p'!a \<le> p!a"
-  using assms sorry
+lemma aux1:
+  assumes "mset ys \<subseteq># mset xs"
+  shows "mset (filter p ys) \<subseteq># mset (filter p xs)"
+  using assms
+  apply (induction xs arbitrary: ys)
+  apply (auto)
+  by (smt filter_mset_add_mset mset_filter multiset_filter_mono)+
 
-lemma select_hps_gt_p:
-  assumes "k < length ps" "(lps, p, hps) = select a ps k"
-  shows "\<forall>p' \<in> set hps. p!a < p'!a"
-  using assms sorry
-
-lemma select_length:
-  assumes "k < length ps" "(lps, p, hps) = select a ps k"
-  shows "length lps + length hps + 1 = length ps"
-  using assms sorry
-
-lemma select_k:
-  assumes "k < length ps" "(lps, p, hps) = select a ps k"
-  shows "k = length lps"
-  using assms sorry
-
+lemma aux2:
+  assumes "mset ys \<subseteq># mset xs"
+  shows "length (filter p ys) \<le> length (filter p xs)"
+  using assms aux1 by (metis size_mset size_mset_mono)
 
 end

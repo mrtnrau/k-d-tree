@@ -1,18 +1,17 @@
 theory homework_10
 imports
   Complex_Main
-  "HOL-Library.Multiset"
 begin
 
 text \<open>
   I did take "Functional Data Structures" last semester and verified the range query algorithm
-  as final project. Those sections are marked (LINE 125-287) and have already been graded but
+  as final project. Those sections are marked and have already been graded but
   are here for completeness only.
 
   The construction of balanced k-d trees and the nearest neighbor algorithm are new.
   There is of course some overlap in the initial definitions but I had to change the tree
   by moving the data form the nodes to the leafs and storing the axis in the node to make the
-  nearest neighbor and construction algorithm work and adjust the work from last semester accordingly.
+  nearest neighbor algorithm work and adjust the work from last semester accordingly.
 \<close>
 
 text \<open>
@@ -87,7 +86,7 @@ fun set_kdt :: "kdt \<Rightarrow> point set" where
 
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar k (Leaf p) \<longleftrightarrow> dim p = k"
-| "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. p!a \<ge> s) \<and>
+| "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. p!a > s) \<and>
     invar k l \<and> invar k r \<and> a < k"
 
 lemma invar_l:
@@ -117,175 +116,127 @@ lemma invar_l_le_a:
 
 lemma invar_r_gt_a:
   assumes "invar k (Node a s l r)"
-  shows "\<forall>p \<in> set_kdt r. s \<le> p!a"
+  shows "\<forall>p \<in> set_kdt r. s < p!a"
   using assms by simp
 
 
 
+text \<open>New insertion algorithm\<close>
 
-(* THIS IS FROM LAST SEMESTER START *)
-
-text \<open>
-  Verifying k-dimensional queries on the k-d tree.
-
-  Given two k-dimensional points p\<^sub>0 and p\<^sub>1 which bound the search space, the query should return
-  only the points which satisfy the following criteria:
-
-  For every point p in the resulting set:
-    For every axis a \<in> [0, k-1]:
-      min (p\<^sub>0!a) (p\<^sub>1!a) <= p!a and p!a <= max (p\<^sub>0!a) (p\<^sub>1!a)
-
-  For example: In a 2-d tree a query corresponds to selecting all the points in
-  the rectangle which has p\<^sub>0 and p\<^sub>1 as its defining edges.
-\<close>
-
-text \<open>
-  Simplifying the problem:
-
-  Assume that the two given points p\<^sub>0 and p\<^sub>1 which define the bounding box are the left lower
-  and the right upper point.
-
-  For every point p in the resulting set:
-    For every axis a \<in> [0, k-1]:
-      p\<^sub>0!a <= p\<^sub>1!a
-\<close>
-
-text\<open>The query function and auxiliary definitions:\<close>
-
-definition is_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
-  "is_bounding_box k p\<^sub>0 p\<^sub>1 \<longleftrightarrow> dim p\<^sub>0 = k \<and> dim p\<^sub>1 = k \<and> (\<forall>i < k. p\<^sub>0!i \<le> p\<^sub>1!i)"
-
-definition point_in_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
-  "point_in_bounding_box k p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < k. p\<^sub>0!i \<le> p!i \<and> p!i \<le> p\<^sub>1!i)"
-
-fun query_area' :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
-  "query_area' k p\<^sub>0 p\<^sub>1 (Leaf p) = (
-    if point_in_bounding_box k p p\<^sub>0 p\<^sub>1 then {p} else {}
+fun find_axis' :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> axis option" where
+  "find_axis' a p\<^sub>0 p\<^sub>1 = (
+    if a = 0 then
+      if p\<^sub>0!a \<noteq> p\<^sub>1!a then
+        Some a    
+      else
+        None
+    else 
+      if p\<^sub>0!a \<noteq> p\<^sub>1!a then
+       Some a
+      else
+        find_axis' (a - 1) p\<^sub>0 p\<^sub>1
   )"
-| "query_area' k p\<^sub>0 p\<^sub>1 (Node a s l r) = (
-    if s < p\<^sub>0!a then
-      query_area' k p\<^sub>0 p\<^sub>1 r
-    else if p\<^sub>1!a < s then
-      query_area' k p\<^sub>0 p\<^sub>1 l
+
+definition find_axis :: "point \<Rightarrow> point \<Rightarrow> axis option" where
+  "find_axis p\<^sub>0 p\<^sub>1 = find_axis' (dim p\<^sub>0 - 1) p\<^sub>0 p\<^sub>1"
+
+fun ins :: "point \<Rightarrow> kdt \<Rightarrow> kdt" where
+  "ins p (Leaf p') = (
+    case find_axis p p' of
+      None \<Rightarrow> Leaf p'
+    | Some a \<Rightarrow> (
+        if p!a < p'!a then
+          Node a (p!a) (Leaf p) (Leaf p')
+        else
+          Node a (p'!a) (Leaf p') (Leaf p)
+      )
+  )"
+| "ins p (Node a s l r) = (
+    if p!a \<le> s then
+      Node a s (ins p l) r
     else
-      query_area' k p\<^sub>0 p\<^sub>1 l \<union> query_area' k p\<^sub>0 p\<^sub>1 r
+      Node a s l (ins p r)
   )"
 
-
-
-
-text \<open>Auxiliary lemmas:\<close>
-
-lemma l_pibb_empty:
-  assumes "invar k (Node a s l r)" "s < p\<^sub>0!a"
-  shows "{ p \<in> set_kdt l. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
+lemma find_axis'_Some_1:
+  assumes "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
+  shows "p\<^sub>0!a' \<noteq> p\<^sub>1!a'"
   using assms
-proof -
-  have "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
-    using invar_l_le_a assms(1,2) by auto
-  hence "\<forall>p \<in> set_kdt l. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(1) invar_axis_lt_k by blast
-  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
-    using point_in_bounding_box_def by fastforce
-  thus ?thesis by blast
-qed
+  by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
 
-lemma r_pibb_empty:
-  assumes "invar k (Node a s l r)" "p\<^sub>1!a < s"
-  shows "{ p \<in> set_kdt r. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
+lemma find_axis'_Some_2:
+  assumes "\<exists>i \<le> a. p\<^sub>0!i \<noteq> p\<^sub>1!i"
+  shows "\<exists>i \<le> a. find_axis' a p\<^sub>0 p\<^sub>1 = Some i"
   using assms
-proof -
-  have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
-    using invar_r_gt_a assms(1,2) by auto
-  hence "\<forall>p \<in> set_kdt r. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(1) invar_axis_lt_k by blast
-  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
-   using point_in_bounding_box_def by fastforce
-  thus ?thesis by blast
+proof (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
+  case (1 a p\<^sub>0 p\<^sub>1)
+  thus ?case
+  proof (cases "a \<noteq> 0 \<and> p\<^sub>0!a = p\<^sub>1!a")
+    case True
+    then obtain i where "i \<le> a - 1 \<and> p\<^sub>0 ! i \<noteq> p\<^sub>1 ! i"
+      using 1 by (metis One_nat_def Suc_pred diff_is_0_eq' le_less less_Suc_eq_le less_imp_diff_less)
+    then obtain j where "j \<le> a - 1 \<and> find_axis' (a - 1) p\<^sub>0 p\<^sub>1 = Some j"
+      using 1 True less_imp_diff_less by blast
+    thus ?thesis using True by force
+  next
+    case False
+    thus ?thesis using 1 by (auto split!: if_splits)
+  qed
 qed
 
+lemma find_axis'_Some_3:
+  assumes "a < k" "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
+  shows "a' < k"
+  using assms
+  by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
 
-
-
-text \<open>The simplified main theorem:\<close>
-
-theorem query_area':
-  assumes "invar k kdt"
-  shows "query_area' k p\<^sub>0 p\<^sub>1 kdt = { p \<in> set_kdt kdt. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 }"
-  using assms l_pibb_empty r_pibb_empty
-  by (induction kdt) auto
-
-
-
-
-text \<open>
-  Un-simplifying the problem:
-
-  Given two arbitrary points p\<^sub>0 and p\<^sub>1 which only satisfy the dimensionality property,
-  does the query function work?
-
-  Hide the is_bounding_box abstraction.
-\<close>
-
-text \<open>Auxiliary functions and the final query function:\<close>
-
-fun min_max :: "real * real \<Rightarrow> real * real" where
-  "min_max (a, b) = (min a b, max a b)"
-
-definition to_bounding_box :: "point \<Rightarrow> point \<Rightarrow> point * point" where
-  "to_bounding_box p\<^sub>0 p\<^sub>1 = (let ivs = map min_max (zip p\<^sub>0 p\<^sub>1) in (map fst ivs, map snd ivs))"
-
-definition query_area :: "point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
-  "query_area q\<^sub>0 q\<^sub>1 kdt = (let (p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1 in query_area' (dim q\<^sub>0) p\<^sub>0 p\<^sub>1 kdt)"
-
-
-
-
-text \<open>Auxiliary lemmas and the final theorem:\<close>
-
-lemma tbbibb:
-  assumes "k = dim q\<^sub>0" "k = dim q\<^sub>1" "(p\<^sub>0 ,p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
-  shows "is_bounding_box k p\<^sub>0 p\<^sub>1"
-  using assms by (auto simp add: to_bounding_box_def is_bounding_box_def)
-
-lemma pibb:
-  assumes "k = dim q\<^sub>0" "k = dim q\<^sub>1" "(p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
-  shows "point_in_bounding_box k p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i))"
-  using assms by (auto simp add: min_def max_def to_bounding_box_def point_in_bounding_box_def)
-
-theorem query_area:
-  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
-  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> x!i \<and> x!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i) }"
-  using assms pibb tbbibb query_area' by (auto simp add: query_area_def)
-
-corollary
-  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
-  shows "query_area q\<^sub>0 q\<^sub>1 kdt = query_area q\<^sub>1 q\<^sub>0 kdt"
-  using assms query_area by auto
-
-corollary
-  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1" "p \<in> set_kdt kdt" "\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i)"
-  shows "p \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
-  using assms query_area by blast
-
-corollary
-  assumes "invar k kdt" "k = dim q\<^sub>0" "q\<^sub>0 = q\<^sub>1" "q\<^sub>0 \<in> set_kdt kdt"
-  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { q\<^sub>0 }"
-proof -
-  have QA: "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. q\<^sub>0!i = x!i }"
-    using query_area assms(1,2,3) by auto
-
-  have A: "\<forall>p \<in> query_area q\<^sub>0 q\<^sub>1 kdt. dim p = k"
-    using assms(1) QA invar_dim by blast
-  have B: "q\<^sub>0 \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
-    using assms(4) QA by blast
-  have C: "\<forall>p \<noteq> q\<^sub>0. dim p = k \<longrightarrow> (\<exists>i < k. q\<^sub>0!i \<noteq> p!i)"
-    using assms(2) nth_equalityI by fastforce
-
-  show ?thesis using QA A B C by blast
+lemma find_axis'_None:
+  "(\<forall>i \<le> a. p\<^sub>0!i = p\<^sub>1!i) \<longleftrightarrow> (find_axis' a p\<^sub>0 p\<^sub>1 = None)"
+proof (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
+  case (1 a p\<^sub>0 p\<^sub>1)
+  then show ?case
+  proof (cases "a \<noteq> 0 \<and> p\<^sub>0!a = p\<^sub>1!a")
+    case True
+    hence "(\<forall>i \<le> a - 1. (p\<^sub>0!i = p\<^sub>1!i)) = (find_axis' (a - 1) p\<^sub>0 p\<^sub>1 = None)"
+      using 1 by auto
+    thus ?thesis using True
+      by (metis One_nat_def Suc_pred find_axis'.simps find_axis'_Some_2 le_SucI neq0_conv option.distinct(1))
+  next
+    case False
+    thus ?thesis using 1 by (auto split!: if_splits)
+  qed
 qed
 
-(* THIS IS FROM LAST SEMESTER END *)
+lemma find_axis_None:
+  assumes "dim p\<^sub>0 = dim p\<^sub>1"
+  shows "(p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
+  using assms find_axis_def find_axis'_None
+  by (metis One_nat_def Suc_pred dim_def le_simps(2) length_greater_0_conv nth_equalityI)
+
+lemma find_axis_Some_1:
+  assumes "dim p\<^sub>0 = dim p\<^sub>1" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
+  shows "p\<^sub>0!a' \<noteq> p\<^sub>1!a'"
+  using assms find_axis_def find_axis'_Some_1 by metis
+
+lemma find_axis_Some_2:
+  assumes "dim p\<^sub>0 = k" "dim p\<^sub>1 = k" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
+  shows "a' < k"
+  using assms find_axis'_Some_3 find_axis_def
+  by (metis diff_less find_axis_None dim_def le_less_linear length_greater_0_conv not_one_le_zero option.distinct(1))
+
+lemma ins_set:
+  assumes "invar k kdt" "dim p = k"
+  shows "set_kdt (ins p kdt) = {p} \<union> set_kdt kdt"
+  using assms
+  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
+
+lemma ins_invar:
+  assumes "invar k kdt" "dim p = k"
+  shows "invar k (ins p kdt)"
+  using assms
+  apply (induction kdt)
+  apply (auto simp add: find_axis_Some_2 ins_set split: option.splits)
+  using find_axis_Some_1 by fastforce
 
 
 
@@ -555,93 +506,166 @@ corollary
 
 
 
-(* *** *)
+(* FROM HERE ON LAST SEMESTER *)
 
-fun select :: "axis \<Rightarrow> point list \<Rightarrow> nat \<Rightarrow> point" where
-  "select _ [] _ = undefined"
-| "select _ [p] _ = p"
-| "select a (p # ps) k = (
-    let lps = filter (\<lambda>p'. p'!a \<le> p!a) ps in
-    let hps = filter (\<lambda>p'. p!a < p'!a) ps in
-    if k = length lps then
-      p
-    else if k < length lps then
-      select a lps k
+text \<open>
+  Verifying k-dimensional queries on the k-d tree.
+
+  Given two k-dimensional points p\<^sub>0 and p\<^sub>1 which bound the search space, the query should return
+  only the points which satisfy the following criteria:
+
+  For every point p in the resulting set:
+    For every axis a \<in> [0, k-1]:
+      min (p\<^sub>0!a) (p\<^sub>1!a) <= p!a and p!a <= max (p\<^sub>0!a) (p\<^sub>1!a)
+
+  For example: In a 2-d tree a query corresponds to selecting all the points in
+  the rectangle which has p\<^sub>0 and p\<^sub>1 as its defining edges.
+\<close>
+
+text \<open>
+  Simplifying the problem:
+
+  Assume that the two given points p\<^sub>0 and p\<^sub>1 which define the bounding box are the left lower
+  and the right upper point.
+
+  For every point p in the resulting set:
+    For every axis a \<in> [0, k-1]:
+      p\<^sub>0!a <= p\<^sub>1!a
+\<close>
+
+text\<open>The query function and auxiliary definitions:\<close>
+
+definition is_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
+  "is_bounding_box k p\<^sub>0 p\<^sub>1 \<longleftrightarrow> dim p\<^sub>0 = k \<and> dim p\<^sub>1 = k \<and> (\<forall>i < k. p\<^sub>0!i \<le> p\<^sub>1!i)"
+
+definition point_in_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
+  "point_in_bounding_box k p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < k. p\<^sub>0!i \<le> p!i \<and> p!i \<le> p\<^sub>1!i)"
+
+fun query_area' :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
+  "query_area' k p\<^sub>0 p\<^sub>1 (Leaf p) = (
+    if point_in_bounding_box k p p\<^sub>0 p\<^sub>1 then {p} else {}
+  )"
+| "query_area' k p\<^sub>0 p\<^sub>1 (Node a s l r) = (
+    if s < p\<^sub>0!a then
+      query_area' k p\<^sub>0 p\<^sub>1 r
+    else if p\<^sub>1!a \<le> s then
+      query_area' k p\<^sub>0 p\<^sub>1 l
     else
-      select a hps (k - length lps - 1)
+      query_area' k p\<^sub>0 p\<^sub>1 l \<union> query_area' k p\<^sub>0 p\<^sub>1 r
   )"
 
-lemma aux0:
-  "mset (filter p xs) \<subseteq># mset xs"
-  apply (induction xs)
-  apply (auto)
-  by (metis add_mset_add_single mset_subset_eq_add_left subset_mset.add_increasing2)
 
-lemma aux00:
-  assumes "mset ys \<subseteq># mset xs"
-  shows "mset ys \<subseteq># mset (x # xs)"
+
+
+text \<open>Auxiliary lemmas:\<close>
+
+lemma l_pibb_empty:
+  assumes "invar k (Node a s l r)" "s < p\<^sub>0!a"
+  shows "{ p \<in> set_kdt l. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
   using assms
-  apply (induction ys)
-  apply (auto)
-  by (metis mset_subset_eq_exists_conv union_mset_add_mset_right)
-
-lemma aux1:
-  assumes "mset ys \<subseteq># mset xs"
-  shows "mset (filter p ys) \<subseteq># mset (filter p xs)"
-  using assms
-  apply (induction xs arbitrary: ys)
-  apply (auto)
-  by (smt filter_mset_add_mset mset_filter multiset_filter_mono)+
-
-lemma aux2:
-  assumes "mset ys \<subseteq># mset xs"
-  shows "length (filter p ys) \<le> length (filter p xs)"
-  using assms aux1 by (metis size_mset size_mset_mono)
-
-lemma select:
-  assumes "k < length ps"
-  shows "length (filter (\<lambda>q. q ! a \<le> select a ps k ! a) ps) \<ge> k"
-  using assms
-proof (induction a ps k rule: select.induct)
-  case (1 a k)
-  thus ?case by simp
-next
-  case (2 a p k)
-  thus ?case by simp
-next
-  case (3 a p p' ps' k)
-
-  thm "3.prems"
-  thm "3.IH"
-
-  let ?pps = "p # p' # ps'"
-  let ?lps = "filter (\<lambda>q. q!a \<le> p!a) (p' # ps')"
-  let ?hps = "filter (\<lambda>q. p!a < q!a) (p' # ps')"
-
-  consider (A) "k = length ?lps" | (B) "k < length ?lps" | (C) "k > length ?lps"
-    by fastforce
-  thus ?case
-  proof cases
-    case A
-    thus ?thesis by simp
-  next
-    case B
-
-    have "mset ?lps \<subseteq># mset ?pps"
-      using aux0 aux00 by fast
-
-    have "length (filter (\<lambda>q. q!a \<le> select a ?pps k!a) ?pps) \<ge> length (filter (\<lambda>q. q!a \<le> select a ?lps k!a) ?pps)"
-      using B by auto
-    hence "length (filter (\<lambda>q. q!a \<le> select a ?pps k!a) ?pps) \<ge> length (filter (\<lambda>q. q!a \<le> select a ?lps k!a) ?lps)"
-      using \<open>mset ?lps \<subseteq># mset ?pps\<close> aux2 dual_order.trans by blast
-    hence "length (filter (\<lambda>q. q!a \<le> select a ?pps k!a) ?pps) \<ge> k"
-      using B "3.IH"(1) by presburger
-    thus ?thesis by blast
-  next
-    case C
-    then show ?thesis sorry
-  qed
+proof -
+  have "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
+    using invar_l_le_a assms(1,2) by auto
+  hence "\<forall>p \<in> set_kdt l. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_k by blast
+  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+    using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
 qed
 
+lemma r_pibb_empty:
+  assumes "invar k (Node a s l r)" "p\<^sub>1!a \<le> s"
+  shows "{ p \<in> set_kdt r. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
+  using assms
+proof -
+  have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
+    using invar_r_gt_a assms(1,2) by auto
+  hence "\<forall>p \<in> set_kdt r. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_k by blast
+  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+   using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
+qed
+
+
+
+
+text \<open>The simplified main theorem:\<close>
+
+theorem query_area':
+  assumes "invar k kdt"
+  shows "query_area' k p\<^sub>0 p\<^sub>1 kdt = { p \<in> set_kdt kdt. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 }"
+  using assms l_pibb_empty r_pibb_empty
+  by (induction kdt) auto
+
+
+
+
+text \<open>
+  Un-simplifying the problem:
+
+  Given two arbitrary points p\<^sub>0 and p\<^sub>1 which only satisfy the dimensionality property,
+  does the query function work?
+
+  Hide the is_bounding_box abstraction.
+\<close>
+
+text \<open>Auxiliary functions and the final query function:\<close>
+
+fun min_max :: "real * real \<Rightarrow> real * real" where
+  "min_max (a, b) = (min a b, max a b)"
+
+definition to_bounding_box :: "point \<Rightarrow> point \<Rightarrow> point * point" where
+  "to_bounding_box p\<^sub>0 p\<^sub>1 = (let ivs = map min_max (zip p\<^sub>0 p\<^sub>1) in (map fst ivs, map snd ivs))"
+
+definition query_area :: "point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
+  "query_area q\<^sub>0 q\<^sub>1 kdt = (let (p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1 in query_area' (dim q\<^sub>0) p\<^sub>0 p\<^sub>1 kdt)"
+
+
+
+
+text \<open>Auxiliary lemmas and the final theorem:\<close>
+
+lemma tbbibb:
+  assumes "k = dim q\<^sub>0" "k = dim q\<^sub>1" "(p\<^sub>0 ,p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
+  shows "is_bounding_box k p\<^sub>0 p\<^sub>1"
+  using assms by (auto simp add: to_bounding_box_def is_bounding_box_def)
+
+lemma pibb:
+  assumes "k = dim q\<^sub>0" "k = dim q\<^sub>1" "(p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
+  shows "point_in_bounding_box k p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i))"
+  using assms by (auto simp add: min_def max_def to_bounding_box_def point_in_bounding_box_def)
+
+theorem query_area:
+  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> x!i \<and> x!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i) }"
+  using assms pibb tbbibb query_area' by (auto simp add: query_area_def)
+
+corollary
+  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = query_area q\<^sub>1 q\<^sub>0 kdt"
+  using assms query_area by auto
+
+corollary
+  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1" "p \<in> set_kdt kdt" "\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i)"
+  shows "p \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
+  using assms query_area by blast
+
+corollary
+  assumes "invar k kdt" "k = dim q\<^sub>0" "q\<^sub>0 = q\<^sub>1" "q\<^sub>0 \<in> set_kdt kdt"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { q\<^sub>0 }"
+proof -
+  have QA: "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. q\<^sub>0!i = x!i }"
+    using query_area assms(1,2,3) by auto
+
+  have A: "\<forall>p \<in> query_area q\<^sub>0 q\<^sub>1 kdt. dim p = k"
+    using assms(1) QA invar_dim by blast
+  have B: "q\<^sub>0 \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
+    using assms(4) QA by blast
+  have C: "\<forall>p \<noteq> q\<^sub>0. dim p = k \<longrightarrow> (\<exists>i < k. q\<^sub>0!i \<noteq> p!i)"
+    using assms(2) nth_equalityI by fastforce
+
+  show ?thesis using QA A B C by blast
+qed
 
 end
