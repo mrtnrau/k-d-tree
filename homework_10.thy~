@@ -8,10 +8,10 @@ text \<open>
   as final project. Those sections are marked and have already been graded but
   are here for completeness only.
 
-  The construction of balanced k-d trees and the nearest neighbor algorithm are new.
   There is of course some overlap in the initial definitions but I had to change the tree
   by moving the data form the nodes to the leafs and storing the axis in the node to make the
   nearest neighbor algorithm work and adjust the work from last semester accordingly.
+  The range query algorithm got simpler but the insertion had to be redone from scratch.
 \<close>
 
 text \<open>
@@ -19,7 +19,7 @@ text \<open>
   In principle the k-d tree is a binary tree. The leafs hold the k-dimensional points and the nodes
   contain left and right subtrees as well as a splitting value at a particular axis.
   The tree could also be build with the nodes holding the points and the leafs being empty, but this
-  complicates the code and the proofs.
+  complicates the code and the proofs substantually.
   Every node divides the space into two parts by splitting along a hyperplane.
   Consider a node n with associated splitting axis a with value s.
   All points in the left subtree must have a value at axis a that is less or
@@ -43,7 +43,7 @@ text \<open>
   Bentley, J. L. (1975). "Multidimensional binary search trees used for associative searching".
     https://dl.acm.org/citation.cfm?id=361007
 
-  Friedman, J. (1976). "An Algroithm for Finding Best Matches in Logarithmic Expected Time".
+  Friedman, J. (1976). "An Algorithm for Finding Best Matches in Logarithmic Expected Time".
     https://dl.acm.org/citation.cfm?id=892052
 
   And some slides about construction, range query and nearest neighbor algorithms:
@@ -84,6 +84,10 @@ fun set_kdt :: "kdt \<Rightarrow> point set" where
   "set_kdt (Leaf p) = {p}"
 | "set_kdt (Node _ _ l r) = set_kdt l \<union> set_kdt r"
 
+fun size_kdt :: "kdt \<Rightarrow> nat" where
+  "size_kdt (Leaf _) = 1"
+| "size_kdt (Node _ _ l r) = size_kdt l + size_kdt r"
+
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar k (Leaf p) \<longleftrightarrow> dim p = k"
 | "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. p!a > s) \<and>
@@ -121,21 +125,17 @@ lemma invar_r_gt_a:
 
 
 
-text \<open>New insertion algorithm\<close>
+
+text \<open>
+  New insertion algorithm
+
+  This kdt representation makes insertion quite a bit more difficult but makes verifying
+  the nearest neighbor algorithm feasible.
+\<close>
 
 fun find_axis' :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> axis option" where
-  "find_axis' a p\<^sub>0 p\<^sub>1 = (
-    if a = 0 then
-      if p\<^sub>0!a \<noteq> p\<^sub>1!a then
-        Some a    
-      else
-        None
-    else 
-      if p\<^sub>0!a \<noteq> p\<^sub>1!a then
-       Some a
-      else
-        find_axis' (a - 1) p\<^sub>0 p\<^sub>1
-  )"
+  "find_axis' 0 p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!0 \<noteq> p\<^sub>1!0 then Some 0 else None)"
+| "find_axis' a p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!a \<noteq> p\<^sub>1!a then Some a else find_axis' (a - 1) p\<^sub>0 p\<^sub>1)"
 
 definition find_axis :: "point \<Rightarrow> point \<Rightarrow> axis option" where
   "find_axis p\<^sub>0 p\<^sub>1 = find_axis' (dim p\<^sub>0 - 1) p\<^sub>0 p\<^sub>1"
@@ -158,6 +158,11 @@ fun ins :: "point \<Rightarrow> kdt \<Rightarrow> kdt" where
       Node a s l (ins p r)
   )"
 
+
+
+
+text \<open>Auxiliary lemmas.\<close>
+
 lemma find_axis'_Some_1:
   assumes "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
   shows "p\<^sub>0!a' \<noteq> p\<^sub>1!a'"
@@ -165,26 +170,6 @@ lemma find_axis'_Some_1:
   by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
 
 lemma find_axis'_Some_2:
-  assumes "\<exists>i \<le> a. p\<^sub>0!i \<noteq> p\<^sub>1!i"
-  shows "\<exists>i \<le> a. find_axis' a p\<^sub>0 p\<^sub>1 = Some i"
-  using assms
-proof (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
-  case (1 a p\<^sub>0 p\<^sub>1)
-  thus ?case
-  proof (cases "a \<noteq> 0 \<and> p\<^sub>0!a = p\<^sub>1!a")
-    case True
-    then obtain i where "i \<le> a - 1 \<and> p\<^sub>0 ! i \<noteq> p\<^sub>1 ! i"
-      using 1 by (metis One_nat_def Suc_pred diff_is_0_eq' le_less less_Suc_eq_le less_imp_diff_less)
-    then obtain j where "j \<le> a - 1 \<and> find_axis' (a - 1) p\<^sub>0 p\<^sub>1 = Some j"
-      using 1 True less_imp_diff_less by blast
-    thus ?thesis using True by force
-  next
-    case False
-    thus ?thesis using 1 by (auto split!: if_splits)
-  qed
-qed
-
-lemma find_axis'_Some_3:
   assumes "a < k" "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
   shows "a' < k"
   using assms
@@ -192,26 +177,9 @@ lemma find_axis'_Some_3:
 
 lemma find_axis'_None:
   "(\<forall>i \<le> a. p\<^sub>0!i = p\<^sub>1!i) \<longleftrightarrow> (find_axis' a p\<^sub>0 p\<^sub>1 = None)"
-proof (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
-  case (1 a p\<^sub>0 p\<^sub>1)
-  then show ?case
-  proof (cases "a \<noteq> 0 \<and> p\<^sub>0!a = p\<^sub>1!a")
-    case True
-    hence "(\<forall>i \<le> a - 1. (p\<^sub>0!i = p\<^sub>1!i)) = (find_axis' (a - 1) p\<^sub>0 p\<^sub>1 = None)"
-      using 1 by auto
-    thus ?thesis using True
-      by (metis One_nat_def Suc_pred find_axis'.simps find_axis'_Some_2 le_SucI neq0_conv option.distinct(1))
-  next
-    case False
-    thus ?thesis using 1 by (auto split!: if_splits)
-  qed
-qed
-
-lemma find_axis_None:
-  assumes "dim p\<^sub>0 = dim p\<^sub>1"
-  shows "(p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
-  using assms find_axis_def find_axis'_None
-  by (metis One_nat_def Suc_pred dim_def le_simps(2) length_greater_0_conv nth_equalityI)
+  apply (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
+  apply (auto)
+  using le_SucE by blast
 
 lemma find_axis_Some_1:
   assumes "dim p\<^sub>0 = dim p\<^sub>1" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
@@ -221,22 +189,45 @@ lemma find_axis_Some_1:
 lemma find_axis_Some_2:
   assumes "dim p\<^sub>0 = k" "dim p\<^sub>1 = k" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
   shows "a' < k"
-  using assms find_axis'_Some_3 find_axis_def
-  by (metis diff_less find_axis_None dim_def le_less_linear length_greater_0_conv not_one_le_zero option.distinct(1))
+  using assms find_axis'_Some_2
+  by (metis diff_less find_axis_Some_1 find_axis_def dim_def le_less_linear length_greater_0_conv not_one_le_zero)
+
+lemma find_axis_None:
+  assumes "dim p\<^sub>0 = dim p\<^sub>1"
+  shows "(p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
+  unfolding find_axis_def using assms find_axis'_None nth_equalityI
+  by (metis One_nat_def Suc_pred dim_def le_simps(2) length_greater_0_conv)
+
+
+
+
+text \<open>Main lemmas about insertion.\<close>
+
+lemma ins_size_eq:
+  assumes "invar k kdt" "dim p = k" "p \<in> set_kdt kdt"
+  shows "size (ins p kdt) = size kdt"
+  using assms
+  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
+
+lemma ins_size_1:
+  assumes "invar k kdt" "dim p = k" "p \<notin> set_kdt kdt"
+  shows "size (ins p kdt) = size kdt + 1"
+  using assms
+  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
 
 lemma ins_set:
   assumes "invar k kdt" "dim p = k"
   shows "set_kdt (ins p kdt) = {p} \<union> set_kdt kdt"
-  using assms
-  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
+  using assms find_axis_None 
+  by (induction kdt) (auto split: option.splits)
 
 lemma ins_invar:
   assumes "invar k kdt" "dim p = k"
   shows "invar k (ins p kdt)"
-  using assms
+  using assms find_axis_Some_1 find_axis_Some_2 ins_set
   apply (induction kdt)
-  apply (auto simp add: find_axis_Some_2 ins_set split: option.splits)
-  using find_axis_Some_1 by fastforce
+  apply (auto split: option.splits)
+  by fastforce
 
 
 
@@ -269,15 +260,15 @@ definition min_by_sqed :: "point \<Rightarrow> point \<Rightarrow> point \<Right
 
 lemma sqed'_ge_0:
   "sqed' x y \<ge> 0"
-  using sqed'_def by simp
+  by (simp add: sqed'_def)
 
 lemma sqed'_eq_0[simp]:
   "sqed' x y = 0 \<longleftrightarrow> x = y"
-  using sqed'_def by simp
+  by (simp add: sqed'_def)
 
 lemma sqed'_com:
   "sqed' x y = sqed' y x"
-  using sqed'_def by (simp add: power2_commute)
+  by (simp add: sqed'_def power2_commute)
 
 lemma inequality:
   assumes "(x::real) \<le> 0" "y \<le> 0"
@@ -298,24 +289,26 @@ lemma sqed'_split:
 lemma sqed_ge_0:
   assumes "dim p\<^sub>0 = dim p\<^sub>1"
   shows "sqed p\<^sub>0 p\<^sub>1 \<ge> 0"
-  using assms by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_ge_0)
+  using assms 
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_ge_0)
 
 lemma sqed_eq_0[simp]:
   assumes "p\<^sub>0 = p\<^sub>1"
   shows "sqed p\<^sub>0 p\<^sub>1 = 0"
-  using assms by(induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) auto
+  using assms 
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) auto
 
 lemma sqed_eq_0_rev:
   assumes "dim p\<^sub>0 = dim p\<^sub>1" "sqed p\<^sub>0 p\<^sub>1 = 0"
   shows "p\<^sub>0 = p\<^sub>1"
   using assms
-  apply (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct)
-  by (auto simp add: add_nonneg_eq_0_iff sqed'_ge_0 sqed_ge_0)
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: add_nonneg_eq_0_iff sqed'_ge_0 sqed_ge_0)
 
 lemma sqed_com:
   assumes "dim p\<^sub>0 = dim p\<^sub>1"
   shows "sqed p\<^sub>0 p\<^sub>1 = sqed p\<^sub>1 p\<^sub>0"
-  using assms by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_com)
+  using assms 
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_com)
 
 
 
@@ -347,9 +340,9 @@ fun nearest_neighbor :: "dimension \<Rightarrow> point \<Rightarrow> kdt \<Right
 text \<open>First part of main theorem.\<close>
 
 lemma nearest_neighbor_in_kdt:
-  assumes "invar k kdt" "dim p = k"
-  shows "nearest_neighbor k p kdt \<in> set_kdt kdt"
-  using assms by (induction kdt) (auto simp add: Let_def min_by_sqed_def)
+  "nearest_neighbor k p kdt \<in> set_kdt kdt"
+  by (induction kdt) (auto simp add: Let_def min_by_sqed_def)
+
 
 
 
@@ -502,6 +495,94 @@ corollary
   assumes "invar k kdt" "p \<in> set_kdt kdt"
   shows "nearest_neighbor k p kdt = p"
   using assms by (smt invar_dim nearest_neighbor sqed_eq_0 sqed_eq_0_rev sqed_ge_0)
+
+
+
+
+(* *)
+
+fun merge :: "point \<Rightarrow> point list \<Rightarrow> point list \<Rightarrow> point list" where
+  "merge _ [] [] = []"
+| "merge _ [] ys = ys"
+| "merge _ xs [] = xs"
+| "merge p (x # xs) (y # ys) = (
+    if sqed x p \<le> sqed y p then
+      x # merge p xs (y # ys)
+    else
+      y # merge p (x # xs) ys
+  )"
+
+fun m_nearest_neighbors :: "nat \<Rightarrow> dimension \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
+  "m_nearest_neighbors _ _ _ (Leaf p) = [p]"
+| "m_nearest_neighbors m k p (Node a s l r) = (
+    if p!a \<le> s then
+      let candidates = m_nearest_neighbors m k p l in
+      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+        candidates
+      else
+        let candidates' = m_nearest_neighbors m k p r in
+        take m (merge p candidates candidates')
+    else
+      let candidates = m_nearest_neighbors m k p r in
+      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+        candidates
+      else
+        let candidates' = m_nearest_neighbors m k p l in
+        take m (merge p candidates candidates')
+  )"
+
+
+
+
+lemma merge_union:
+  "set (merge p p\<^sub>0 p\<^sub>1) = set p\<^sub>0 \<union> set p\<^sub>1"
+  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) auto
+
+lemma merge_length:
+  "length (merge p p\<^sub>0 p\<^sub>1) = length p\<^sub>0 + length p\<^sub>1"
+  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) auto
+
+lemma merge_sorted_wrt_sqed_p:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) p\<^sub>0" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) p\<^sub>1"
+  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (merge p p\<^sub>0 p\<^sub>1)"
+  using assms
+  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) (auto simp add: merge_union)
+
+lemma sorted_wrt_take:
+  assumes "sorted_wrt f xs"
+  shows "sorted_wrt f (take n xs)"
+  using assms
+  apply (induction xs arbitrary: n)
+  apply (auto)
+  by (metis append_take_drop_id sorted_wrt.simps(2) sorted_wrt_append)
+
+lemma m_nearest_neighbors_min_m_size_kdt:
+  assumes "m > 0"
+  shows "length (m_nearest_neighbors m k p kdt) = min m (size_kdt kdt)"
+  using assms
+  by (induction kdt) (auto simp add: merge_length Let_def)
+
+lemma m_nearest_neighbors_sorted_wrt_sqed_p:
+  "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (m_nearest_neighbors m k p kdt)"
+  by (induction kdt) (auto simp add: merge_sorted_wrt_sqed_p sorted_wrt_take Let_def)
+
+lemma m_nearest_neighbors_in_kdt:
+  "set (m_nearest_neighbors m k p kdt) \<subseteq> set_kdt kdt"
+  apply (induction kdt)
+  apply (auto)
+  by (smt UnE in_set_takeD merge_union subsetCE)+
+
+lemma m_nearest_neighbors_distinct:
+  assumes "invar k kdt" "dim p = k"
+  shows "distinct (m_nearest_neighbors m k p kdt)"
+  using assms
+  sorry
+
+lemma m_nearest_neighbors_optimum:
+  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k p kdt = ns"
+  shows "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p"
+  using assms
+  sorry
 
 
 

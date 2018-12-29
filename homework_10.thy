@@ -534,20 +534,6 @@ fun m_nearest_neighbors :: "nat \<Rightarrow> dimension \<Rightarrow> point \<Ri
 
 
 
-lemma merge_union:
-  "set (merge p p\<^sub>0 p\<^sub>1) = set p\<^sub>0 \<union> set p\<^sub>1"
-  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) auto
-
-lemma merge_length:
-  "length (merge p p\<^sub>0 p\<^sub>1) = length p\<^sub>0 + length p\<^sub>1"
-  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) auto
-
-lemma merge_sorted_wrt_sqed_p:
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) p\<^sub>0" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) p\<^sub>1"
-  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (merge p p\<^sub>0 p\<^sub>1)"
-  using assms
-  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) (auto simp add: merge_union)
-
 lemma sorted_wrt_take:
   assumes "sorted_wrt f xs"
   shows "sorted_wrt f (take n xs)"
@@ -556,33 +542,88 @@ lemma sorted_wrt_take:
   apply (auto)
   by (metis append_take_drop_id sorted_wrt.simps(2) sorted_wrt_append)
 
-lemma m_nearest_neighbors_min_m_size_kdt:
+lemma distinct_kdt:
+  assumes "invar k kdt" "kdt = Node a s l r"
+  shows "set_kdt l \<inter> set_kdt r = {}"
+  using assms
+  by (induction kdt) (auto simp add: leD)
+
+lemma merge_union:
+  "set (merge p ps\<^sub>0 ps\<^sub>1) = set ps\<^sub>0 \<union> set ps\<^sub>1"
+  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) auto
+
+lemma merge_length:
+  "length (merge p ps\<^sub>0 ps\<^sub>1) = length ps\<^sub>0 + length ps\<^sub>1"
+  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) auto
+
+lemma merge_distinct:
+  assumes "distinct ps\<^sub>0" "distinct ps\<^sub>1" "set ps\<^sub>0 \<inter> set ps\<^sub>1 = {}"
+  shows "distinct (merge p ps\<^sub>0 ps\<^sub>1)"
+  using assms
+  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) (auto simp add: merge_union)
+
+lemma merge_sorted_wrt_sqed_p:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ps\<^sub>0" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ps\<^sub>1"
+  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (merge p ps\<^sub>0 ps\<^sub>1)"
+  using assms
+  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) (auto simp add: merge_union)
+
+theorem m_nearest_neighbors_min_m_size_kdt:
   assumes "m > 0"
   shows "length (m_nearest_neighbors m k p kdt) = min m (size_kdt kdt)"
   using assms
   by (induction kdt) (auto simp add: merge_length Let_def)
 
-lemma m_nearest_neighbors_sorted_wrt_sqed_p:
+theorem m_nearest_neighbors_sorted_wrt_sqed_p:
   "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (m_nearest_neighbors m k p kdt)"
   by (induction kdt) (auto simp add: merge_sorted_wrt_sqed_p sorted_wrt_take Let_def)
 
-lemma m_nearest_neighbors_in_kdt:
+theorem m_nearest_neighbors_in_kdt:
   "set (m_nearest_neighbors m k p kdt) \<subseteq> set_kdt kdt"
   apply (induction kdt)
   apply (auto)
   by (smt UnE in_set_takeD merge_union subsetCE)+
 
-lemma m_nearest_neighbors_distinct:
+theorem m_nearest_neighbors_distinct:
   assumes "invar k kdt" "dim p = k"
   shows "distinct (m_nearest_neighbors m k p kdt)"
   using assms
-  sorry
+  apply (induction kdt)
+  apply (auto simp add: Let_def)
+  by (smt merge_distinct distinct_kdt m_nearest_neighbors_in_kdt Int_emptyI distinct_take subsetCE)+
 
-lemma m_nearest_neighbors_optimum:
+lemma m_nearest_neighbors_optimum':
   assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k p kdt = ns"
-  shows "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p"
+  shows "\<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed (last ns) p \<le> sqed q p"
   using assms
   sorry
+
+lemma aux:
+  assumes "sorted_wrt f (xs @ [x])"
+  shows "\<forall>x' \<in> set xs. f x' x"
+  using assms by (induction xs) auto
+
+theorem m_nearest_neighbors_optimum:
+  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k p kdt = ns"
+  shows "\<forall>n \<in> set ns. (\<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p)"
+proof standard
+  fix n
+  assume N: "n \<in> set ns"
+  show "\<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p"
+  proof standard
+    fix q
+    assume "q \<in> set_kdt kdt"
+
+    hence A: "q \<notin> set ns \<longrightarrow> sqed (last ns) p \<le> sqed q p"
+      using assms(1,2,3) m_nearest_neighbors_optimum' by blast
+
+    have B: "\<forall>n' \<in> set ns. sqed n' p \<le> sqed (last ns) p"
+      using m_nearest_neighbors_sorted_wrt_sqed_p[of p m k kdt] aux[of "(\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)" "butlast ns" "last ns"]
+      by (smt append_butlast_last_id assms(3) empty_iff list.set(1) rotate1.simps(2) set_ConsD set_rotate1)
+
+    show "q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p" using N A B by fastforce
+  qed
+qed
 
 
 
