@@ -43,7 +43,7 @@ text \<open>
   Bentley, J. L. (1975). "Multidimensional binary search trees used for associative searching".
     https://dl.acm.org/citation.cfm?id=361007
 
-  Friedman, J. (1976). "An Algroithm for Finding Best Matches in Logarithmic Expected Time".
+  Friedman, J. (1976). "An Algorithm for Finding Best Matches in Logarithmic Expected Time".
     https://dl.acm.org/citation.cfm?id=892052
 
   And some slides about construction, range query and nearest neighbor algorithms:
@@ -121,21 +121,17 @@ lemma invar_r_gt_a:
 
 
 
-text \<open>New insertion algorithm\<close>
+
+text \<open>
+  New insertion algorithm
+
+  This kdt representation makes insertion quite a bit more difficult but makes verifying
+  the nearest neighbor algorithm feasible.
+\<close>
 
 fun find_axis' :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> axis option" where
-  "find_axis' a p\<^sub>0 p\<^sub>1 = (
-    if a = 0 then
-      if p\<^sub>0!a \<noteq> p\<^sub>1!a then
-        Some a    
-      else
-        None
-    else 
-      if p\<^sub>0!a \<noteq> p\<^sub>1!a then
-       Some a
-      else
-        find_axis' (a - 1) p\<^sub>0 p\<^sub>1
-  )"
+  "find_axis' 0 p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!0 \<noteq> p\<^sub>1!0 then Some 0 else None)"
+| "find_axis' a p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!a \<noteq> p\<^sub>1!a then Some a else find_axis' (a - 1) p\<^sub>0 p\<^sub>1)"
 
 definition find_axis :: "point \<Rightarrow> point \<Rightarrow> axis option" where
   "find_axis p\<^sub>0 p\<^sub>1 = find_axis' (dim p\<^sub>0 - 1) p\<^sub>0 p\<^sub>1"
@@ -158,6 +154,11 @@ fun ins :: "point \<Rightarrow> kdt \<Rightarrow> kdt" where
       Node a s l (ins p r)
   )"
 
+
+
+
+text \<open>Auxiliary lemmas.\<close>
+
 lemma find_axis'_Some_1:
   assumes "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
   shows "p\<^sub>0!a' \<noteq> p\<^sub>1!a'"
@@ -165,26 +166,6 @@ lemma find_axis'_Some_1:
   by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
 
 lemma find_axis'_Some_2:
-  assumes "\<exists>i \<le> a. p\<^sub>0!i \<noteq> p\<^sub>1!i"
-  shows "\<exists>i \<le> a. find_axis' a p\<^sub>0 p\<^sub>1 = Some i"
-  using assms
-proof (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
-  case (1 a p\<^sub>0 p\<^sub>1)
-  thus ?case
-  proof (cases "a \<noteq> 0 \<and> p\<^sub>0!a = p\<^sub>1!a")
-    case True
-    then obtain i where "i \<le> a - 1 \<and> p\<^sub>0 ! i \<noteq> p\<^sub>1 ! i"
-      using 1 by (metis One_nat_def Suc_pred diff_is_0_eq' le_less less_Suc_eq_le less_imp_diff_less)
-    then obtain j where "j \<le> a - 1 \<and> find_axis' (a - 1) p\<^sub>0 p\<^sub>1 = Some j"
-      using 1 True less_imp_diff_less by blast
-    thus ?thesis using True by force
-  next
-    case False
-    thus ?thesis using 1 by (auto split!: if_splits)
-  qed
-qed
-
-lemma find_axis'_Some_3:
   assumes "a < k" "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
   shows "a' < k"
   using assms
@@ -192,26 +173,9 @@ lemma find_axis'_Some_3:
 
 lemma find_axis'_None:
   "(\<forall>i \<le> a. p\<^sub>0!i = p\<^sub>1!i) \<longleftrightarrow> (find_axis' a p\<^sub>0 p\<^sub>1 = None)"
-proof (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
-  case (1 a p\<^sub>0 p\<^sub>1)
-  then show ?case
-  proof (cases "a \<noteq> 0 \<and> p\<^sub>0!a = p\<^sub>1!a")
-    case True
-    hence "(\<forall>i \<le> a - 1. (p\<^sub>0!i = p\<^sub>1!i)) = (find_axis' (a - 1) p\<^sub>0 p\<^sub>1 = None)"
-      using 1 by auto
-    thus ?thesis using True
-      by (metis One_nat_def Suc_pred find_axis'.simps find_axis'_Some_2 le_SucI neq0_conv option.distinct(1))
-  next
-    case False
-    thus ?thesis using 1 by (auto split!: if_splits)
-  qed
-qed
-
-lemma find_axis_None:
-  assumes "dim p\<^sub>0 = dim p\<^sub>1"
-  shows "(p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
-  using assms find_axis_def find_axis'_None
-  by (metis One_nat_def Suc_pred dim_def le_simps(2) length_greater_0_conv nth_equalityI)
+  apply (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct)
+  apply (auto)
+  using le_SucE by blast
 
 lemma find_axis_Some_1:
   assumes "dim p\<^sub>0 = dim p\<^sub>1" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
@@ -221,22 +185,33 @@ lemma find_axis_Some_1:
 lemma find_axis_Some_2:
   assumes "dim p\<^sub>0 = k" "dim p\<^sub>1 = k" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
   shows "a' < k"
-  using assms find_axis'_Some_3 find_axis_def
-  by (metis diff_less find_axis_None dim_def le_less_linear length_greater_0_conv not_one_le_zero option.distinct(1))
+  using assms find_axis'_Some_2
+  by (metis diff_less find_axis_Some_1 find_axis_def dim_def le_less_linear length_greater_0_conv not_one_le_zero)
+
+lemma find_axis_None:
+  assumes "dim p\<^sub>0 = dim p\<^sub>1"
+  shows "(p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
+  unfolding find_axis_def using assms find_axis'_None nth_equalityI
+  by (metis One_nat_def Suc_pred dim_def le_simps(2) length_greater_0_conv)
+
+
+
+
+text \<open>Main lemmas about insertion.\<close>
 
 lemma ins_set:
   assumes "invar k kdt" "dim p = k"
   shows "set_kdt (ins p kdt) = {p} \<union> set_kdt kdt"
-  using assms
-  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
+  using assms find_axis_None 
+  by (induction kdt) (auto split: option.splits)
 
 lemma ins_invar:
   assumes "invar k kdt" "dim p = k"
   shows "invar k (ins p kdt)"
-  using assms
+  using assms find_axis_Some_1 find_axis_Some_2 ins_set
   apply (induction kdt)
-  apply (auto simp add: find_axis_Some_2 ins_set split: option.splits)
-  using find_axis_Some_1 by fastforce
+  apply (auto split: option.splits)
+  by fastforce
 
 
 
@@ -269,15 +244,15 @@ definition min_by_sqed :: "point \<Rightarrow> point \<Rightarrow> point \<Right
 
 lemma sqed'_ge_0:
   "sqed' x y \<ge> 0"
-  using sqed'_def by simp
+  by (simp add: sqed'_def)
 
 lemma sqed'_eq_0[simp]:
   "sqed' x y = 0 \<longleftrightarrow> x = y"
-  using sqed'_def by simp
+  by (simp add: sqed'_def)
 
 lemma sqed'_com:
   "sqed' x y = sqed' y x"
-  using sqed'_def by (simp add: power2_commute)
+  by (simp add: sqed'_def power2_commute)
 
 lemma inequality:
   assumes "(x::real) \<le> 0" "y \<le> 0"
@@ -298,24 +273,26 @@ lemma sqed'_split:
 lemma sqed_ge_0:
   assumes "dim p\<^sub>0 = dim p\<^sub>1"
   shows "sqed p\<^sub>0 p\<^sub>1 \<ge> 0"
-  using assms by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_ge_0)
+  using assms 
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_ge_0)
 
 lemma sqed_eq_0[simp]:
   assumes "p\<^sub>0 = p\<^sub>1"
   shows "sqed p\<^sub>0 p\<^sub>1 = 0"
-  using assms by(induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) auto
+  using assms 
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) auto
 
 lemma sqed_eq_0_rev:
   assumes "dim p\<^sub>0 = dim p\<^sub>1" "sqed p\<^sub>0 p\<^sub>1 = 0"
   shows "p\<^sub>0 = p\<^sub>1"
   using assms
-  apply (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct)
-  by (auto simp add: add_nonneg_eq_0_iff sqed'_ge_0 sqed_ge_0)
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: add_nonneg_eq_0_iff sqed'_ge_0 sqed_ge_0)
 
 lemma sqed_com:
   assumes "dim p\<^sub>0 = dim p\<^sub>1"
   shows "sqed p\<^sub>0 p\<^sub>1 = sqed p\<^sub>1 p\<^sub>0"
-  using assms by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_com)
+  using assms 
+  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_com)
 
 
 
@@ -349,7 +326,8 @@ text \<open>First part of main theorem.\<close>
 lemma nearest_neighbor_in_kdt:
   assumes "invar k kdt" "dim p = k"
   shows "nearest_neighbor k p kdt \<in> set_kdt kdt"
-  using assms by (induction kdt) (auto simp add: Let_def min_by_sqed_def)
+  using assms
+  by (induction kdt) (auto simp add: Let_def min_by_sqed_def)
 
 
 
