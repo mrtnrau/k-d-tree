@@ -8,10 +8,10 @@ text \<open>
   as final project. Those sections are marked and have already been graded but
   are here for completeness only.
 
-  The construction of balanced k-d trees and the nearest neighbor algorithm are new.
   There is of course some overlap in the initial definitions but I had to change the tree
   by moving the data form the nodes to the leafs and storing the axis in the node to make the
   nearest neighbor algorithm work and adjust the work from last semester accordingly.
+  The range query algorithm got simpler but the insertion had to be redone from scratch.
 \<close>
 
 text \<open>
@@ -19,7 +19,7 @@ text \<open>
   In principle the k-d tree is a binary tree. The leafs hold the k-dimensional points and the nodes
   contain left and right subtrees as well as a splitting value at a particular axis.
   The tree could also be build with the nodes holding the points and the leafs being empty, but this
-  complicates the code and the proofs.
+  complicates the code and the proofs substantually.
   Every node divides the space into two parts by splitting along a hyperplane.
   Consider a node n with associated splitting axis a with value s.
   All points in the left subtree must have a value at axis a that is less or
@@ -83,6 +83,10 @@ text \<open>
 fun set_kdt :: "kdt \<Rightarrow> point set" where
   "set_kdt (Leaf p) = {p}"
 | "set_kdt (Node _ _ l r) = set_kdt l \<union> set_kdt r"
+
+fun size_kdt :: "kdt \<Rightarrow> nat" where
+  "size_kdt (Leaf _) = 1"
+| "size_kdt (Node _ _ l r) = size_kdt l + size_kdt r"
 
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar k (Leaf p) \<longleftrightarrow> dim p = k"
@@ -198,6 +202,18 @@ lemma find_axis_None:
 
 
 text \<open>Main lemmas about insertion.\<close>
+
+lemma ins_size_eq:
+  assumes "invar k kdt" "dim p = k" "p \<in> set_kdt kdt"
+  shows "size (ins p kdt) = size kdt"
+  using assms
+  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
+
+lemma ins_size_1:
+  assumes "invar k kdt" "dim p = k" "p \<notin> set_kdt kdt"
+  shows "size (ins p kdt) = size kdt + 1"
+  using assms
+  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
 
 lemma ins_set:
   assumes "invar k kdt" "dim p = k"
@@ -324,10 +340,9 @@ fun nearest_neighbor :: "dimension \<Rightarrow> point \<Rightarrow> kdt \<Right
 text \<open>First part of main theorem.\<close>
 
 lemma nearest_neighbor_in_kdt:
-  assumes "invar k kdt" "dim p = k"
-  shows "nearest_neighbor k p kdt \<in> set_kdt kdt"
-  using assms
+  "nearest_neighbor k p kdt \<in> set_kdt kdt"
   by (induction kdt) (auto simp add: Let_def min_by_sqed_def)
+
 
 
 
@@ -480,6 +495,94 @@ corollary
   assumes "invar k kdt" "p \<in> set_kdt kdt"
   shows "nearest_neighbor k p kdt = p"
   using assms by (smt invar_dim nearest_neighbor sqed_eq_0 sqed_eq_0_rev sqed_ge_0)
+
+
+
+
+(* *)
+
+fun merge :: "point \<Rightarrow> point list \<Rightarrow> point list \<Rightarrow> point list" where
+  "merge _ [] [] = []"
+| "merge _ [] ys = ys"
+| "merge _ xs [] = xs"
+| "merge p (x # xs) (y # ys) = (
+    if sqed x p \<le> sqed y p then
+      x # merge p xs (y # ys)
+    else
+      y # merge p (x # xs) ys
+  )"
+
+fun m_nearest_neighbors :: "nat \<Rightarrow> dimension \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
+  "m_nearest_neighbors _ _ _ (Leaf p) = [p]"
+| "m_nearest_neighbors m k p (Node a s l r) = (
+    if p!a \<le> s then
+      let candidates = m_nearest_neighbors m k p l in
+      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+        candidates
+      else
+        let candidates' = m_nearest_neighbors m k p r in
+        take m (merge p candidates candidates')
+    else
+      let candidates = m_nearest_neighbors m k p r in
+      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+        candidates
+      else
+        let candidates' = m_nearest_neighbors m k p l in
+        take m (merge p candidates candidates')
+  )"
+
+
+
+
+lemma merge_union:
+  "set (merge p p\<^sub>0 p\<^sub>1) = set p\<^sub>0 \<union> set p\<^sub>1"
+  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) auto
+
+lemma merge_length:
+  "length (merge p p\<^sub>0 p\<^sub>1) = length p\<^sub>0 + length p\<^sub>1"
+  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) auto
+
+lemma merge_sorted_wrt_sqed_p:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) p\<^sub>0" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) p\<^sub>1"
+  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (merge p p\<^sub>0 p\<^sub>1)"
+  using assms
+  by (induction p p\<^sub>0 p\<^sub>1 rule: merge.induct) (auto simp add: merge_union)
+
+lemma sorted_wrt_take:
+  assumes "sorted_wrt f xs"
+  shows "sorted_wrt f (take n xs)"
+  using assms
+  apply (induction xs arbitrary: n)
+  apply (auto)
+  by (metis append_take_drop_id sorted_wrt.simps(2) sorted_wrt_append)
+
+lemma m_nearest_neighbors_min_m_size_kdt:
+  assumes "m > 0"
+  shows "length (m_nearest_neighbors m k p kdt) = min m (size_kdt kdt)"
+  using assms
+  by (induction kdt) (auto simp add: merge_length Let_def)
+
+lemma m_nearest_neighbors_sorted_wrt_sqed_p:
+  "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (m_nearest_neighbors m k p kdt)"
+  by (induction kdt) (auto simp add: merge_sorted_wrt_sqed_p sorted_wrt_take Let_def)
+
+lemma m_nearest_neighbors_in_kdt:
+  "set (m_nearest_neighbors m k p kdt) \<subseteq> set_kdt kdt"
+  apply (induction kdt)
+  apply (auto)
+  by (smt UnE in_set_takeD merge_union subsetCE)+
+
+lemma m_nearest_neighbors_distinct:
+  assumes "invar k kdt" "dim p = k"
+  shows "distinct (m_nearest_neighbors m k p kdt)"
+  using assms
+  sorry
+
+lemma m_nearest_neighbors_optimum:
+  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k p kdt = ns"
+  shows "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p"
+  using assms
+  sorry
 
 
 
