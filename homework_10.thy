@@ -89,39 +89,44 @@ fun size_kdt :: "kdt \<Rightarrow> nat" where
 | "size_kdt (Node _ _ l r) = size_kdt l + size_kdt r"
 
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
-  "invar k (Leaf p) \<longleftrightarrow> dim p = k"
-| "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. p!a > s) \<and>
-    invar k l \<and> invar k r \<and> a < k"
+  "invar d (Leaf p) \<longleftrightarrow> dim p = d"
+| "invar d (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. p!a > s) \<and>
+    invar d l \<and> invar d r \<and> a < d"
 
 lemma invar_l:
-  assumes "invar k (Node a s l r)"
-  shows "invar k l"
+  assumes "invar d (Node a s l r)"
+  shows "invar d l"
   using assms by simp
 
 lemma invar_r:
-  assumes "invar k (Node a s l r)"
-  shows "invar k r"
+  assumes "invar d (Node a s l r)"
+  shows "invar d r"
   using assms by simp
 
-lemma invar_axis_lt_k:
-  assumes "invar k (Node a s l r)"
-  shows "a < k"
+lemma invar_axis_lt_d:
+  assumes "invar d (Node a s l r)"
+  shows "a < d"
   using assms by simp
 
 lemma invar_dim:
-  assumes "invar k kdt"
-  shows "\<forall>p \<in> set_kdt kdt. dim p = k"
+  assumes "invar d kdt"
+  shows "\<forall>p \<in> set_kdt kdt. dim p = d"
   using assms by (induction kdt) auto
 
 lemma invar_l_le_a:
-  assumes "invar k (Node a s l r)"
+  assumes "invar d (Node a s l r)"
   shows "\<forall>p \<in> set_kdt l. p!a \<le> s"
   using assms by simp
 
 lemma invar_r_gt_a:
-  assumes "invar k (Node a s l r)"
+  assumes "invar d (Node a s l r)"
   shows "\<forall>p \<in> set_kdt r. s < p!a"
   using assms by simp
+
+lemma invar_distinct:
+  assumes "invar d kdt" "kdt = Node a s l r"
+  shows "set_kdt l \<inter> set_kdt r = {}"
+  using assms by fastforce
 
 
 
@@ -170,8 +175,8 @@ lemma find_axis'_Some_1:
   by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
 
 lemma find_axis'_Some_2:
-  assumes "a < k" "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
-  shows "a' < k"
+  assumes "a < d" "find_axis' a p\<^sub>0 p\<^sub>1 = Some a'"
+  shows "a' < d"
   using assms
   by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
 
@@ -187,15 +192,15 @@ lemma find_axis_Some_1:
   using assms find_axis_def find_axis'_Some_1 by metis
 
 lemma find_axis_Some_2:
-  assumes "dim p\<^sub>0 = k" "dim p\<^sub>1 = k" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
-  shows "a' < k"
-  using assms find_axis'_Some_2
-  by (metis diff_less find_axis_Some_1 find_axis_def dim_def le_less_linear length_greater_0_conv not_one_le_zero)
+  assumes "dim p\<^sub>0 = d" "dim p\<^sub>1 = d" "find_axis p\<^sub>0 p\<^sub>1 = Some a'"
+  shows "a' < d"
+  using assms find_axis_def find_axis_Some_1 find_axis'_Some_2
+  by (metis diff_less dim_def le_less_linear length_greater_0_conv not_one_le_zero)
 
 lemma find_axis_None:
   assumes "dim p\<^sub>0 = dim p\<^sub>1"
   shows "(p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
-  unfolding find_axis_def using assms find_axis'_None nth_equalityI
+  using assms find_axis_def find_axis'_None nth_equalityI
   by (metis One_nat_def Suc_pred dim_def le_simps(2) length_greater_0_conv)
 
 
@@ -204,26 +209,26 @@ lemma find_axis_None:
 text \<open>Main lemmas about insertion.\<close>
 
 lemma ins_size_eq:
-  assumes "invar k kdt" "dim p = k" "p \<in> set_kdt kdt"
+  assumes "invar d kdt" "dim p = d" "p \<in> set_kdt kdt"
   shows "size (ins p kdt) = size kdt"
   using assms
   by (induction kdt) (auto simp add: find_axis_None split: option.splits)
 
 lemma ins_size_1:
-  assumes "invar k kdt" "dim p = k" "p \<notin> set_kdt kdt"
+  assumes "invar d kdt" "dim p = d" "p \<notin> set_kdt kdt"
   shows "size (ins p kdt) = size kdt + 1"
   using assms
   by (induction kdt) (auto simp add: find_axis_None split: option.splits)
 
 lemma ins_set:
-  assumes "invar k kdt" "dim p = k"
+  assumes "invar d kdt" "dim p = d"
   shows "set_kdt (ins p kdt) = {p} \<union> set_kdt kdt"
   using assms find_axis_None 
   by (induction kdt) (auto split: option.splits)
 
 lemma ins_invar:
-  assumes "invar k kdt" "dim p = k"
-  shows "invar k (ins p kdt)"
+  assumes "invar d kdt" "dim p = d"
+  shows "invar d (ins p kdt)"
   using assms find_axis_Some_1 find_axis_Some_2 ins_set
   apply (induction kdt)
   apply (auto split: option.splits)
@@ -315,22 +320,22 @@ lemma sqed_com:
 
 text\<open>The nearest neighbor algorithm.\<close>
 
-fun nearest_neighbor :: "dimension \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point" where
-  "nearest_neighbor _ _ (Leaf p) = p"
-| "nearest_neighbor k p (Node a s l r) = (
+fun nearest_neighbor :: "point \<Rightarrow> kdt \<Rightarrow> point" where
+  "nearest_neighbor _ (Leaf p) = p"
+| "nearest_neighbor p (Node a s l r) = (
     if p!a \<le> s then
-      let candidate = nearest_neighbor k p l in
+      let candidate = nearest_neighbor p l in
       if sqed p candidate \<le> sqed' s (p!a) then
         candidate
       else
-        let candidate' = nearest_neighbor k p r in
+        let candidate' = nearest_neighbor p r in
         min_by_sqed candidate candidate' p
     else
-      let candidate = nearest_neighbor k p r in
+      let candidate = nearest_neighbor p r in
       if sqed p candidate \<le> sqed' s (p!a) then
         candidate
       else
-        let candidate' = nearest_neighbor k p l in
+        let candidate' = nearest_neighbor p l in
         min_by_sqed candidate candidate' p
   )"
 
@@ -340,7 +345,7 @@ fun nearest_neighbor :: "dimension \<Rightarrow> point \<Rightarrow> kdt \<Right
 text \<open>First part of main theorem.\<close>
 
 lemma nearest_neighbor_in_kdt:
-  "nearest_neighbor k p kdt \<in> set_kdt kdt"
+  "nearest_neighbor p kdt \<in> set_kdt kdt"
   by (induction kdt) (auto simp add: Let_def min_by_sqed_def)
 
 
@@ -383,15 +388,15 @@ text \<open>
 \<close>
 
 lemma minimize_sqed:
-  assumes "dim p\<^sub>0 = k" "dim p\<^sub>1 = k" "a < k"
+  assumes "dim p\<^sub>0 = d" "dim p\<^sub>1 = d" "a < d"
   shows "sqed p\<^sub>0 p\<^sub>1 \<ge> sqed' (p\<^sub>0!a) (p\<^sub>0[a := (p\<^sub>1!a)]!a)"
   using assms
-  apply (induction p\<^sub>0 p\<^sub>1 arbitrary: a k rule: sqed.induct)
+  apply (induction p\<^sub>0 p\<^sub>1 arbitrary: a d rule: sqed.induct)
   apply (auto simp add: sqed_ge_0 split: nat.splits)
   by (smt sqed'_ge_0)
 
 lemma cutoff_r:
-  assumes "invar k (Node a s l r)" "dim p = k"
+  assumes "invar d (Node a s l r)" "dim p = d"
   assumes "p!a \<le> s" "sqed p c \<le> sqed' s (p!a)"
   shows "\<forall>q \<in> set_kdt r. sqed p c \<le> sqed p q"
 proof standard
@@ -402,10 +407,10 @@ proof standard
 
   (* The distance between p and q is greater or equal the minimized distance between p and q' *)
   have "sqed p q \<ge> sqed' (p!a) (?q'!a)"
-    using A minimize_sqed assms(1,2) invar_axis_lt_k invar_dim invar_r by blast
+    using A minimize_sqed assms(1,2) invar_axis_lt_d invar_dim invar_r by blast
   (* Hence it is greater or equal to the distance from p to s + the distance from s to q' *)
   hence "sqed p q \<ge> sqed' (p!a) s + sqed' s (q!a)"
-    by (smt A assms(1,2,3) dim_def nth_list_update_eq invar_axis_lt_k invar_r_gt_a sqed'_split)
+    by (smt A assms(1,2,3) dim_def nth_list_update_eq invar_axis_lt_d invar_r_gt_a sqed'_split)
   (* Hence it is greater or equal to the distance from p to c since sqed' s (q!a) \<ge> 0 *)
   hence "sqed p q \<ge> sqed p c"
     by (smt assms(4) sqed'_com sqed'_ge_0)
@@ -414,7 +419,7 @@ proof standard
 qed
 
 lemma cutoff_l:
-  assumes "invar k (Node a s l r)" "dim p = k"
+  assumes "invar d (Node a s l r)" "dim p = d"
   assumes "s \<le> p!a" "sqed p c \<le> sqed' s (p!a)"
   shows "\<forall>q \<in> set_kdt l. sqed p c \<le> sqed p q"
 proof standard
@@ -424,9 +429,9 @@ proof standard
   let ?q' = "p[a := (q!a)]"
 
   have "sqed p q \<ge> sqed' (p!a) (?q'!a)"
-    using A minimize_sqed invar_dim invar_l invar_axis_lt_k assms(1,2) by blast
+    using A minimize_sqed invar_dim invar_l invar_axis_lt_d assms(1,2) by blast
   hence "sqed p q \<ge> sqed' (p!a) s + sqed' s (q!a)"
-    by (smt A assms(1,2,3) dim_def invar_axis_lt_k invar_l_le_a nth_list_update_eq sqed'_com sqed'_split)
+    by (smt A assms(1,2,3) dim_def invar_axis_lt_d invar_l_le_a nth_list_update_eq sqed'_com sqed'_split)
   hence "sqed p q \<ge> sqed p c"
     by (smt assms(4) sqed'_com sqed'_ge_0)
 
@@ -436,24 +441,24 @@ qed
 
 
 
-text \<open>The main proof and the final theorem.\<close>
+text \<open>The main theorem.\<close>
 
 lemma nearest_neighbor_minimal:
-  assumes "invar k kdt" "dim p = k"
-  shows "\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor k p kdt) p \<le> sqed q p"
+  assumes "invar d kdt" "dim p = d"
+  shows "\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor p kdt) p \<le> sqed q p"
   using assms
 proof (induction kdt)
   case (Leaf p)
   thus ?case by simp
 next
   case (Node a s l r)
-  let ?candidate_l = "nearest_neighbor k p l"
-  let ?candidate_r = "nearest_neighbor k p r"
+  let ?candidate_l = "nearest_neighbor p l"
+  let ?candidate_r = "nearest_neighbor p r"
 
   have IHL: "\<forall>q \<in> set_kdt l. sqed ?candidate_l p \<le> sqed q p"
-    using Node.IH(1) Node.prems(1) invar_axis_lt_k assms(2) by auto
+    using Node.IH(1) Node.prems(1) invar_axis_lt_d assms(2) by auto
   have IHR: "\<forall>q \<in> set_kdt r. sqed ?candidate_r p \<le> sqed q p"
-    using Node.IH(2) Node.prems(1) invar_axis_lt_k assms(2) by auto
+    using Node.IH(2) Node.prems(1) invar_axis_lt_d assms(2) by auto
 
   consider (A) "p!a \<le> s \<and> sqed p ?candidate_l \<le> sqed' s (p!a)"
          | (B) "p!a \<le> s \<and> \<not>sqed p ?candidate_l \<le> sqed' s (p!a)"
@@ -464,7 +469,7 @@ next
   proof cases
     case A
     hence "\<forall>q \<in> set_kdt r. sqed p ?candidate_l \<le> sqed p q"
-      using Node.prems(1) assms(2) cutoff_r invar_axis_lt_k invar_l nearest_neighbor_in_kdt by blast
+      using Node.prems(1) assms(2) cutoff_r invar_axis_lt_d invar_l nearest_neighbor_in_kdt by blast
     thus ?thesis using A Node.prems IHL
       apply (auto)
       by (metis assms(2) invar_dim nearest_neighbor_in_kdt sqed_com)
@@ -475,7 +480,7 @@ next
   next
     case C
     hence "\<forall>q \<in> set_kdt l. sqed p ?candidate_r \<le> sqed p q"
-      using Node.prems(1) assms(2) cutoff_l invar_r invar_axis_lt_k nearest_neighbor_in_kdt by smt
+      using Node.prems(1) assms(2) cutoff_l invar_r invar_axis_lt_d nearest_neighbor_in_kdt by smt
     thus ?thesis using C Node.prems IHR
       apply (auto)
       by (metis (mono_tags, lifting) assms(2) invar_dim nearest_neighbor_in_kdt sqed_com)
@@ -487,116 +492,177 @@ next
 qed
 
 theorem nearest_neighbor:
-  assumes "invar k kdt" "dim p = k"
-  shows "(\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor k p kdt) p \<le> sqed q p) \<and> nearest_neighbor k p kdt \<in> set_kdt kdt"
-  using assms nearest_neighbor_in_kdt nearest_neighbor_minimal invar_axis_lt_k by simp
+  assumes "invar d kdt" "dim p = d"
+  shows "(\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor p kdt) p \<le> sqed q p) \<and> nearest_neighbor p kdt \<in> set_kdt kdt"
+  using assms nearest_neighbor_in_kdt nearest_neighbor_minimal invar_axis_lt_d by simp
 
 corollary
-  assumes "invar k kdt" "p \<in> set_kdt kdt"
-  shows "nearest_neighbor k p kdt = p"
+  assumes "invar d kdt" "p \<in> set_kdt kdt"
+  shows "nearest_neighbor p kdt = p"
   using assms by (smt invar_dim nearest_neighbor sqed_eq_0 sqed_eq_0_rev sqed_ge_0)
 
 
 
 
-(* *)
+text \<open>
+  Verifying k nearest neighbor search on the k-d tree.
 
-fun merge :: "point \<Rightarrow> point list \<Rightarrow> point list \<Rightarrow> point list" where
-  "merge _ [] [] = []"
-| "merge _ [] ys = ys"
-| "merge _ xs [] = xs"
-| "merge p (x # xs) (y # ys) = (
-    if sqed x p \<le> sqed y p then
-      x # merge p xs (y # ys)
-    else
-      y # merge p (x # xs) ys
+  Given k-d tree and a point p, which might not be in the tree, find the k closest points ns
+  to p by the squared euclidean distance.
+\<close>
+
+text\<open>The k nearest neighbor algorithm.\<close>
+
+fun k_nearest_neighbors' :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
+  "k_nearest_neighbors' k ns p (Leaf p') = (
+    take k (insort_key (\<lambda>q. sqed q p) p' ns)
   )"
-
-fun m_nearest_neighbors :: "nat \<Rightarrow> dimension \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
-  "m_nearest_neighbors _ _ _ (Leaf p) = [p]"
-| "m_nearest_neighbors m k p (Node a s l r) = (
+| "k_nearest_neighbors' k ns p (Node a s l r) = (
     if p!a \<le> s then
-      let candidates = m_nearest_neighbors m k p l in
-      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+      let candidates = k_nearest_neighbors' k ns p l in
+      if length candidates = k \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
         candidates
       else
-        let candidates' = m_nearest_neighbors m k p r in
-        take m (merge p candidates candidates')
+        k_nearest_neighbors' k candidates p r
     else
-      let candidates = m_nearest_neighbors m k p r in
-      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+      let candidates = k_nearest_neighbors' k ns p r in
+      if length candidates = k \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
         candidates
       else
-        let candidates' = m_nearest_neighbors m k p l in
-        take m (merge p candidates candidates')
+        k_nearest_neighbors' k candidates p l
   )"
 
 
 
+
+text\<open>Auxiliary lemmas.\<close>
 
 lemma sorted_wrt_take:
   assumes "sorted_wrt f xs"
   shows "sorted_wrt f (take n xs)"
+proof -
+  have "sorted_wrt f (take n xs @ drop n xs)" 
+    using assms by simp
+  thus "sorted_wrt f (take n xs)"
+    using sorted_wrt_append by blast
+qed
+
+
+
+
+text\<open>The main lemmas.\<close>
+
+lemma knn_length:
+  "length (k_nearest_neighbors' k ns p kdt) = min k (size_kdt kdt + length ns)"
+  by (induction kdt arbitrary: ns) (auto simp add: Let_def)
+
+lemma knn_sorted:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
+  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (k_nearest_neighbors' k ns p kdt)"
   using assms
-  apply (induction xs arbitrary: n)
-  apply (auto)
-  by (metis append_take_drop_id sorted_wrt.simps(2) sorted_wrt_append)
-
-lemma distinct_kdt:
-  assumes "invar k kdt" "kdt = Node a s l r"
-  shows "set_kdt l \<inter> set_kdt r = {}"
-  using assms
-  by (induction kdt) (auto simp add: leD)
-
-lemma merge_union:
-  "set (merge p ps\<^sub>0 ps\<^sub>1) = set ps\<^sub>0 \<union> set ps\<^sub>1"
-  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) auto
-
-lemma merge_length:
-  "length (merge p ps\<^sub>0 ps\<^sub>1) = length ps\<^sub>0 + length ps\<^sub>1"
-  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) auto
-
-lemma merge_distinct:
-  assumes "distinct ps\<^sub>0" "distinct ps\<^sub>1" "set ps\<^sub>0 \<inter> set ps\<^sub>1 = {}"
-  shows "distinct (merge p ps\<^sub>0 ps\<^sub>1)"
-  using assms
-  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) (auto simp add: merge_union)
-
-lemma merge_sorted_wrt_sqed_p:
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ps\<^sub>0" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ps\<^sub>1"
-  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (merge p ps\<^sub>0 ps\<^sub>1)"
-  using assms
-  by (induction p ps\<^sub>0 ps\<^sub>1 rule: merge.induct) (auto simp add: merge_union)
-
-theorem m_nearest_neighbors_min_m_size_kdt:
-  assumes "m > 0"
-  shows "length (m_nearest_neighbors m k p kdt) = min m (size_kdt kdt)"
-  using assms
-  by (induction kdt) (auto simp add: merge_length Let_def)
-
-theorem m_nearest_neighbors_sorted_wrt_sqed_p:
-  "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (m_nearest_neighbors m k p kdt)"
-  by (induction kdt) (auto simp add: merge_sorted_wrt_sqed_p sorted_wrt_take Let_def)
-
-theorem m_nearest_neighbors_in_kdt:
-  "set (m_nearest_neighbors m k p kdt) \<subseteq> set_kdt kdt"
-  apply (induction kdt)
-  apply (auto)
-  by (smt UnE in_set_takeD merge_union subsetCE)+
-
-theorem m_nearest_neighbors_distinct:
-  assumes "invar k kdt" "dim p = k"
-  shows "distinct (m_nearest_neighbors m k p kdt)"
-  using assms
-  apply (induction kdt)
+  apply (induction kdt arbitrary: ns)
   apply (auto simp add: Let_def)
-  by (smt merge_distinct distinct_kdt m_nearest_neighbors_in_kdt Int_emptyI distinct_take subsetCE)+
+  by (metis sorted_insort_key sorted_map sorted_wrt_take)
 
-lemma m_nearest_neighbors_optimum':
-  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k p kdt = ns"
-  shows "\<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed (last ns) p \<le> sqed q p"
+lemma knn_set:
+  shows "set (k_nearest_neighbors' k ns p kdt) \<subseteq> set_kdt kdt \<union> set ns"
+  apply (induction kdt arbitrary: ns)
+  apply (auto simp add: Let_def)
+  using in_set_takeD set_insort_key by fastforce
+
+lemma knn_distinct:
+  assumes "invar d kdt" "dim p = d" "distinct ns" "set ns \<inter> set_kdt kdt = {}"
+  shows "distinct (k_nearest_neighbors' k ns p kdt)"
   using assms
-  sorry
+proof (induction kdt arbitrary: ns)
+  case (Leaf p')
+  thus ?case by (simp add: distinct_insort)
+next
+  case (Node a s l r)
+
+  let ?candidates_l = "k_nearest_neighbors' k ns p l"
+  let ?candidates_r = "k_nearest_neighbors' k ns p r"
+
+  have "set ns \<inter> set_kdt l = {} \<and> set ns \<inter> set_kdt r = {}"
+    using Node.prems(4) by auto
+  hence DCLR: "distinct ?candidates_l \<and> distinct ?candidates_r"
+    using assms(2) Node.IH(1,2) Node.prems(1,3) invar_l invar_r by blast
+
+  have "set ?candidates_l \<inter> set_kdt r = {} \<and> set ?candidates_r \<inter> set_kdt l = {}"
+    using Node.prems(1,4) knn_set invar_distinct by fastforce
+  hence "distinct (k_nearest_neighbors' k ?candidates_l p r) \<and> distinct (k_nearest_neighbors' k ?candidates_r p l)"
+    using assms(2) Node.IH(1,2) Node.prems(1) DCLR invar_l invar_r by blast
+
+  thus ?case using DCLR by (auto simp add: Let_def)
+qed
+
+
+
+
+text\<open>The main theorem.\<close>
+
+(* TODO *)
+
+theorem knn_sqed:
+  assumes "invar d kdt" "dim p = d" "k_nearest_neighbors' k ns p kdt = ns'"
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. sqed n p \<le> sqed q p" 
+  shows "\<forall>n \<in> set ns'. (\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p)"
+  using assms
+proof (induction kdt arbitrary: ns)
+  case (Leaf p')
+  thus ?case
+    apply (auto)
+    by (metis in_set_takeD insert_iff set_insort_key)
+next
+  case (Node a s l r)
+
+  thm Node.prems
+  thm Node.IH
+
+  then show ?case sorry
+qed
+
+
+
+
+text\<open>Wrapping up.\<close>
+
+definition k_nearest_neighbors :: "nat \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
+  "k_nearest_neighbors k p kdt = k_nearest_neighbors' k [] p kdt"
+
+theorem k_nearest_neighbors_1:
+  assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
+  shows "length kns = min k (size_kdt kdt)"
+    and "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) kns"
+    and "set kns \<subseteq> set_kdt kdt"
+    and "distinct kns"
+  using assms knn_length knn_sorted knn_set knn_distinct k_nearest_neighbors_def
+  apply auto
+  by fastforce
+
+theorem k_nearest_neighbors_2:
+  assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
+  shows "\<forall>n \<in> set kns. (\<forall>q \<in> set_kdt kdt. q \<notin> set kns \<longrightarrow> sqed n p \<le> sqed q p)"
+  using assms knn_sqed k_nearest_neighbors_def
+  by (metis empty_iff list.set(1) sorted_wrt.simps(1))
+
+
+
+
+(*
+  TODO:
+
+  - findmin findmax
+  - Building a balanced tree in n log n average case
+  - Deletion
+*) 
+
+(*
+lemma m_nearest_neighbors_optimum':
+  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k ns p kdt = ns'"
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. sqed n p \<le> sqed q p" 
+  shows "\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed (last ns') p \<le> sqed q p"
+  using assms sorry
 
 lemma aux:
   assumes "sorted_wrt f (xs @ [x])"
@@ -604,40 +670,41 @@ lemma aux:
   using assms by (induction xs) auto
 
 theorem m_nearest_neighbors_optimum:
-  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k p kdt = ns"
-  shows "\<forall>n \<in> set ns. (\<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p)"
+  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k ns p kdt = ns'"
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. sqed n p \<le> sqed q p" 
+  shows "\<forall>n \<in> set ns'. (\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p)"
 proof standard
   fix n
-  assume N: "n \<in> set ns"
-  show "\<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p"
+  assume N: "n \<in> set ns'"
+  show "\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p"
   proof standard
     fix q
     assume "q \<in> set_kdt kdt"
 
-    hence A: "q \<notin> set ns \<longrightarrow> sqed (last ns) p \<le> sqed q p"
-      using assms(1,2,3) m_nearest_neighbors_optimum' by blast
+    hence A: "q \<notin> set ns' \<longrightarrow> sqed (last ns') p \<le> sqed q p"
+      using assms(1,2,3,4,5) m_nearest_neighbors_optimum' by blast
 
-    have B: "\<forall>n' \<in> set ns. sqed n' p \<le> sqed (last ns) p"
-      using m_nearest_neighbors_sorted_wrt_sqed_p[of p m k kdt] aux[of "(\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)" "butlast ns" "last ns"]
-      by (smt append_butlast_last_id assms(3) empty_iff list.set(1) rotate1.simps(2) set_ConsD set_rotate1)
+    have B: "\<forall>n' \<in> set ns'. sqed n' p \<le> sqed (last ns') p"
+      using m_nearest_neighbors_sorted_wrt[of p ns m k kdt] aux[of "(\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)" "butlast ns'" "last ns'"]
+      by (smt append_butlast_last_id assms(3) assms(4) empty_iff list.set(1) rotate1.simps(2) set_ConsD set_rotate1)
 
-    show "q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p" using N A B by fastforce
+    show "q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p" using N A B by fastforce
   qed
 qed
-
+*)
 
 
 
 (* FROM HERE ON LAST SEMESTER *)
 
 text \<open>
-  Verifying k-dimensional queries on the k-d tree.
+  Verifying d-dimensional queries on the k-d tree.
 
-  Given two k-dimensional points p\<^sub>0 and p\<^sub>1 which bound the search space, the query should return
+  Given two d-dimensional points p\<^sub>0 and p\<^sub>1 which bound the search space, the query should return
   only the points which satisfy the following criteria:
 
   For every point p in the resulting set:
-    For every axis a \<in> [0, k-1]:
+    For every axis a \<in> [0, d-1]:
       min (p\<^sub>0!a) (p\<^sub>1!a) <= p!a and p!a <= max (p\<^sub>0!a) (p\<^sub>1!a)
 
   For example: In a 2-d tree a query corresponds to selecting all the points in
@@ -651,29 +718,29 @@ text \<open>
   and the right upper point.
 
   For every point p in the resulting set:
-    For every axis a \<in> [0, k-1]:
+    For every axis a \<in> [0, d-1]:
       p\<^sub>0!a <= p\<^sub>1!a
 \<close>
 
 text\<open>The query function and auxiliary definitions:\<close>
 
 definition is_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
-  "is_bounding_box k p\<^sub>0 p\<^sub>1 \<longleftrightarrow> dim p\<^sub>0 = k \<and> dim p\<^sub>1 = k \<and> (\<forall>i < k. p\<^sub>0!i \<le> p\<^sub>1!i)"
+  "is_bounding_box d p\<^sub>0 p\<^sub>1 \<longleftrightarrow> dim p\<^sub>0 = d \<and> dim p\<^sub>1 = d \<and> (\<forall>i < d. p\<^sub>0!i \<le> p\<^sub>1!i)"
 
 definition point_in_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
-  "point_in_bounding_box k p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < k. p\<^sub>0!i \<le> p!i \<and> p!i \<le> p\<^sub>1!i)"
+  "point_in_bounding_box d p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < d. p\<^sub>0!i \<le> p!i \<and> p!i \<le> p\<^sub>1!i)"
 
 fun query_area' :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
-  "query_area' k p\<^sub>0 p\<^sub>1 (Leaf p) = (
-    if point_in_bounding_box k p p\<^sub>0 p\<^sub>1 then {p} else {}
+  "query_area' d p\<^sub>0 p\<^sub>1 (Leaf p) = (
+    if point_in_bounding_box d p p\<^sub>0 p\<^sub>1 then {p} else {}
   )"
-| "query_area' k p\<^sub>0 p\<^sub>1 (Node a s l r) = (
+| "query_area' d p\<^sub>0 p\<^sub>1 (Node a s l r) = (
     if s < p\<^sub>0!a then
-      query_area' k p\<^sub>0 p\<^sub>1 r
+      query_area' d p\<^sub>0 p\<^sub>1 r
     else if p\<^sub>1!a \<le> s then
-      query_area' k p\<^sub>0 p\<^sub>1 l
+      query_area' d p\<^sub>0 p\<^sub>1 l
     else
-      query_area' k p\<^sub>0 p\<^sub>1 l \<union> query_area' k p\<^sub>0 p\<^sub>1 r
+      query_area' d p\<^sub>0 p\<^sub>1 l \<union> query_area' d p\<^sub>0 p\<^sub>1 r
   )"
 
 
@@ -682,29 +749,29 @@ fun query_area' :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarr
 text \<open>Auxiliary lemmas:\<close>
 
 lemma l_pibb_empty:
-  assumes "invar k (Node a s l r)" "s < p\<^sub>0!a"
-  shows "{ p \<in> set_kdt l. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
+  assumes "invar d (Node a s l r)" "s < p\<^sub>0!a"
+  shows "{ p \<in> set_kdt l. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 } = {}"
   using assms
 proof -
   have "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
     using invar_l_le_a assms(1,2) by auto
-  hence "\<forall>p \<in> set_kdt l. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(1) invar_axis_lt_k by blast
-  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+  hence "\<forall>p \<in> set_kdt l. (\<exists>i < d. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_d by blast
+  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box d p p\<^sub>0 p\<^sub>1"
     using point_in_bounding_box_def by fastforce
   thus ?thesis by blast
 qed
 
 lemma r_pibb_empty:
-  assumes "invar k (Node a s l r)" "p\<^sub>1!a \<le> s"
-  shows "{ p \<in> set_kdt r. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 } = {}"
+  assumes "invar d (Node a s l r)" "p\<^sub>1!a \<le> s"
+  shows "{ p \<in> set_kdt r. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 } = {}"
   using assms
 proof -
   have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
     using invar_r_gt_a assms(1,2) by auto
-  hence "\<forall>p \<in> set_kdt r. (\<exists>i < k. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(1) invar_axis_lt_k by blast
-  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box k p p\<^sub>0 p\<^sub>1"
+  hence "\<forall>p \<in> set_kdt r. (\<exists>i < d. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_d by blast
+  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box d p p\<^sub>0 p\<^sub>1"
    using point_in_bounding_box_def by fastforce
   thus ?thesis by blast
 qed
@@ -715,8 +782,8 @@ qed
 text \<open>The simplified main theorem:\<close>
 
 theorem query_area':
-  assumes "invar k kdt"
-  shows "query_area' k p\<^sub>0 p\<^sub>1 kdt = { p \<in> set_kdt kdt. point_in_bounding_box k p p\<^sub>0 p\<^sub>1 }"
+  assumes "invar d kdt"
+  shows "query_area' d p\<^sub>0 p\<^sub>1 kdt = { p \<in> set_kdt kdt. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 }"
   using assms l_pibb_empty r_pibb_empty
   by (induction kdt) auto
 
@@ -749,42 +816,42 @@ definition query_area :: "point \<Rightarrow> point \<Rightarrow> kdt \<Rightarr
 text \<open>Auxiliary lemmas and the final theorem:\<close>
 
 lemma tbbibb:
-  assumes "k = dim q\<^sub>0" "k = dim q\<^sub>1" "(p\<^sub>0 ,p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
-  shows "is_bounding_box k p\<^sub>0 p\<^sub>1"
+  assumes "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" "(p\<^sub>0 ,p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
+  shows "is_bounding_box d p\<^sub>0 p\<^sub>1"
   using assms by (auto simp add: to_bounding_box_def is_bounding_box_def)
 
 lemma pibb:
-  assumes "k = dim q\<^sub>0" "k = dim q\<^sub>1" "(p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
-  shows "point_in_bounding_box k p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i))"
+  assumes "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" "(p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
+  shows "point_in_bounding_box d p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i))"
   using assms by (auto simp add: min_def max_def to_bounding_box_def point_in_bounding_box_def)
 
 theorem query_area:
-  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
-  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> x!i \<and> x!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i) }"
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> x!i \<and> x!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i) }"
   using assms pibb tbbibb query_area' by (auto simp add: query_area_def)
 
 corollary
-  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1"
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d"
   shows "query_area q\<^sub>0 q\<^sub>1 kdt = query_area q\<^sub>1 q\<^sub>0 kdt"
   using assms query_area by auto
 
 corollary
-  assumes "invar k kdt" "k = dim q\<^sub>0" "k = dim q\<^sub>1" "p \<in> set_kdt kdt" "\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i)"
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" "p \<in> set_kdt kdt" "\<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i)"
   shows "p \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
   using assms query_area by blast
 
 corollary
-  assumes "invar k kdt" "k = dim q\<^sub>0" "q\<^sub>0 = q\<^sub>1" "q\<^sub>0 \<in> set_kdt kdt"
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "q\<^sub>0 = q\<^sub>1" "q\<^sub>0 \<in> set_kdt kdt"
   shows "query_area q\<^sub>0 q\<^sub>1 kdt = { q\<^sub>0 }"
 proof -
-  have QA: "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < k. q\<^sub>0!i = x!i }"
+  have QA: "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < d. q\<^sub>0!i = x!i }"
     using query_area assms(1,2,3) by auto
 
-  have A: "\<forall>p \<in> query_area q\<^sub>0 q\<^sub>1 kdt. dim p = k"
+  have A: "\<forall>p \<in> query_area q\<^sub>0 q\<^sub>1 kdt. dim p = d"
     using assms(1) QA invar_dim by blast
   have B: "q\<^sub>0 \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
     using assms(4) QA by blast
-  have C: "\<forall>p \<noteq> q\<^sub>0. dim p = k \<longrightarrow> (\<exists>i < k. q\<^sub>0!i \<noteq> p!i)"
+  have C: "\<forall>p \<noteq> q\<^sub>0. dim p = d \<longrightarrow> (\<exists>i < d. q\<^sub>0!i \<noteq> p!i)"
     using assms(2) nth_equalityI by fastforce
 
   show ?thesis using QA A B C by blast
