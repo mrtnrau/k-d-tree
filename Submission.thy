@@ -1,4 +1,4 @@
-theory homework_10
+theory Submission
 imports
   Complex_Main
 begin
@@ -504,6 +504,8 @@ corollary
 
 
 
+(* I could not finish the hardest part of the main knn theorem :( *)
+
 text \<open>
   Verifying k nearest neighbor search on the k-d tree.
 
@@ -601,12 +603,17 @@ qed
 
 text\<open>The main theorem.\<close>
 
-(* TODO *)
+(* 
+  TODO
+
+  Well, that one I could not proof. :(
+
+*)
 
 theorem knn_sqed:
-  assumes "invar d kdt" "dim p = d" "k_nearest_neighbors' k ns p kdt = ns'"
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. sqed n p \<le> sqed q p" 
-  shows "\<forall>n \<in> set ns'. (\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p)"
+  assumes "invar d kdt" "dim p = d" "k_nearest_neighbors' k ns p kdt = kns"
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. q \<notin> set ns \<longrightarrow> sqed n p \<le> sqed q p" 
+  shows "\<forall>n \<in> (set kns \<union> set ns). (\<forall>q \<in> set_kdt kdt. q \<notin> (set kns \<union> set ns) \<longrightarrow> sqed n p \<le> sqed q p)"
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
@@ -615,11 +622,7 @@ proof (induction kdt arbitrary: ns)
     by (metis in_set_takeD insert_iff set_insort_key)
 next
   case (Node a s l r)
-
-  thm Node.prems
-  thm Node.IH
-
-  then show ?case sorry
+  thus ?case sorry
 qed
 
 
@@ -644,58 +647,12 @@ theorem k_nearest_neighbors_2:
   assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
   shows "\<forall>n \<in> set kns. (\<forall>q \<in> set_kdt kdt. q \<notin> set kns \<longrightarrow> sqed n p \<le> sqed q p)"
   using assms knn_sqed k_nearest_neighbors_def
-  by (metis empty_iff list.set(1) sorted_wrt.simps(1))
+  by (metis Un_iff empty_iff list.set(1) sorted_wrt.simps(1))
 
 
 
 
-(*
-  TODO:
-
-  - findmin findmax
-  - Building a balanced tree in n log n average case
-  - Deletion
-*) 
-
-(*
-lemma m_nearest_neighbors_optimum':
-  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k ns p kdt = ns'"
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. sqed n p \<le> sqed q p" 
-  shows "\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed (last ns') p \<le> sqed q p"
-  using assms sorry
-
-lemma aux:
-  assumes "sorted_wrt f (xs @ [x])"
-  shows "\<forall>x' \<in> set xs. f x' x"
-  using assms by (induction xs) auto
-
-theorem m_nearest_neighbors_optimum:
-  assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m k ns p kdt = ns'"
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "\<forall>n \<in> set ns. \<forall>q \<in> set_kdt kdt. sqed n p \<le> sqed q p" 
-  shows "\<forall>n \<in> set ns'. (\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p)"
-proof standard
-  fix n
-  assume N: "n \<in> set ns'"
-  show "\<forall>q \<in> set_kdt kdt. q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p"
-  proof standard
-    fix q
-    assume "q \<in> set_kdt kdt"
-
-    hence A: "q \<notin> set ns' \<longrightarrow> sqed (last ns') p \<le> sqed q p"
-      using assms(1,2,3,4,5) m_nearest_neighbors_optimum' by blast
-
-    have B: "\<forall>n' \<in> set ns'. sqed n' p \<le> sqed (last ns') p"
-      using m_nearest_neighbors_sorted_wrt[of p ns m k kdt] aux[of "(\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)" "butlast ns'" "last ns'"]
-      by (smt append_butlast_last_id assms(3) assms(4) empty_iff list.set(1) rotate1.simps(2) set_ConsD set_rotate1)
-
-    show "q \<notin> set ns' \<longrightarrow> sqed n p \<le> sqed q p" using N A B by fastforce
-  qed
-qed
-*)
-
-
-
-(* FROM HERE ON LAST SEMESTER *)
+(* FROM HERE ON ONLY ADOPTED PROOFS FROM LAST SEMESTER *)
 
 text \<open>
   Verifying d-dimensional queries on the k-d tree.

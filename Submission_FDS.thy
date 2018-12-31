@@ -1,21 +1,4 @@
-(** Score: 22/15
-
-Very nice contribution! No previous formalization of k-d trees seems to exist.
-Everything works. The proofs are excellent.
-
-15+7 points for fulfilling the task perfectly.
-For more than 7 bonus points more material would have been required.
-
-A few preconditions \<open>length p = k\<close> are not needed
-but for uniformity it may actually be better to leave them in.
-
-I tried to get rid of the \<open>mod k\<close> because I do not think they are needed, but
-theorem query_area' failed. I suspect it needs to be generalized now.
-
-Tobias Nipkow
-*)
-
-theory hw_original
+theory Submission_FDS
 imports
   Complex_Main
   "HOL-Library.Tree"
