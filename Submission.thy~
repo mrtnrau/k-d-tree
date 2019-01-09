@@ -623,21 +623,27 @@ lemma aux11:
 lemma aux2:
   assumes "invar d kdt" "dim p = d" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
   shows "\<forall>n \<in> (set ns - set (k_nearest_neighbors' k ns p kdt)). \<forall>n' \<in> set (k_nearest_neighbors' k ns p kdt). sqed n' p \<le> sqed n p"
+  using assms
   sorry
+
+lemma aux30:
+  assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
+  shows "size_kdt kdt + length ns \<ge> k"
+  using assms knn_length
+  apply (induction kdt arbitrary: ns)
+  apply (auto simp add: set_insort_key)
+  using linear set_insort_key apply fastforce
+  by (smt add.assoc add.commute le_add1 le_add2 min.coboundedI2 min_def subsetCE)+
 
 lemma aux3:
   assumes "set_kdt kdt - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
   shows "length (k_nearest_neighbors' k ns p kdt) = k"
-  sorry
+  using assms using aux30 by (metis (no_types, lifting) Diff_eq_empty_iff knn_length knn_set min_absorb1 sup.absorb_iff1 sup_commute sup_left_idem)
 
 lemma aux4:
   assumes "set xs \<supseteq> set ys" "length xs = length ys" "distinct xs" "distinct ys"
   shows "set xs = set ys"
-proof standard
-  show "set xs \<supseteq> set ys" using assms(1) by auto
-next
-  show "set ys \<supseteq> set xs" using assms sorry
-qed
+  using assms finite_set card_subset_eq distinct_card by metis
 
 theorem knn_sqed:
   assumes "invar d kdt" "dim p = d" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "set ns \<inter> set_kdt kdt = {}" "distinct ns"
@@ -701,7 +707,8 @@ next
       then obtain q' where Q': "q' \<in> set_kdt l - set ?cl"
         by blast
       have LEN: "length ?cl = k"
-        using False aux3 by blast
+        using False aux3
+        using knn_length by fastforce
       show ?thesis
       proof (cases "set ?knn \<supseteq> set ?cl")
         case True
@@ -773,7 +780,7 @@ theorem k_nearest_neighbors_1:
 theorem k_nearest_neighbors_2:
   assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
   shows "\<forall>q \<in> (set_kdt kdt - set kns). \<forall>n \<in> set kns. sqed n p \<le> sqed q p"
-  using assms knn_sqed k_nearest_neighbors_def sledgehammer
+  using assms knn_sqed k_nearest_neighbors_def
   by (metis Diff_disjoint Diff_empty distinct.simps(1) empty_set sorted_wrt.simps(1))
 
 

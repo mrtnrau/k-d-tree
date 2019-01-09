@@ -627,25 +627,23 @@ lemma aux2:
   sorry
 
 lemma aux30:
-  assumes "set_kdt kdt - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
+  assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
   shows "size_kdt kdt + length ns \<ge> k"
-  using assms
+  using assms knn_length
   apply (induction kdt arbitrary: ns)
-   apply (auto simp add: Let_def knn_length sqed'_ge_0)
-      apply (metis insert_iff le_cases length_insort set_insort_key take_all)
-                      apply (meson le_diff_conv subsetCE trans_le_add1)
-                    apply (simp add: knn_length)
-                   apply linarith+
-  subgoal sorry
-          apply (metis (no_types, lifting) add.assoc knn_length min_def subsetCE)
-         apply linarith+
-   apply (metis (no_types, lifting) add.assoc add.commute knn_length min_def subsetCE)
-  by (metis \<open>\<And>x2 x1a x nsa kdt2 kdt1. \<lbrakk>\<And>ns. \<not> set_kdt kdt1 \<subseteq> set (k_nearest_neighbors' k ns p kdt1) \<Longrightarrow> k \<le> Submission.size_kdt kdt1 + length ns; \<And>ns. \<not> set_kdt kdt2 \<subseteq> set (k_nearest_neighbors' k ns p kdt2) \<Longrightarrow> k \<le> Submission.size_kdt kdt2 + length ns; \<not> k \<le> Submission.size_kdt kdt1 + Submission.size_kdt kdt2 + length nsa; x \<in> set_kdt kdt1; min k (Submission.size_kdt kdt1 + length nsa) \<noteq> k; min k (Submission.size_kdt kdt2 + length nsa) \<noteq> k; p ! x1a \<le> x2\<rbrakk> \<Longrightarrow> x \<in> set (k_nearest_neighbors' k (k_nearest_neighbors' k nsa p kdt1) p kdt2)\<close> add.commute order_refl)
+  apply (auto simp add: set_insort_key)
+  using linear set_insort_key apply fastforce
+  by (smt add.assoc add.commute le_add1 le_add2 min.coboundedI2 min_def subsetCE)+
 
 lemma aux3:
   assumes "set_kdt kdt - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
   shows "length (k_nearest_neighbors' k ns p kdt) = k"
-  using assms using aux30  by (simp add: knn_length min_absorb1)
+  using assms using aux30 by (metis (no_types, lifting) Diff_eq_empty_iff knn_length knn_set min_absorb1 sup.absorb_iff1 sup_commute sup_left_idem)
+
+lemma aux31:
+  assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
+  shows "length (k_nearest_neighbors' k ns p kdt) = k"
+  using assms aux30 by (simp add: knn_length min_absorb1)
 
 lemma aux4:
   assumes "set xs \<supseteq> set ys" "length xs = length ys" "distinct xs" "distinct ys"
@@ -714,7 +712,8 @@ next
       then obtain q' where Q': "q' \<in> set_kdt l - set ?cl"
         by blast
       have LEN: "length ?cl = k"
-        using False aux3 by blast
+        using False aux3
+        using knn_length by fastforce
       show ?thesis
       proof (cases "set ?knn \<supseteq> set ?cl")
         case True
@@ -786,7 +785,7 @@ theorem k_nearest_neighbors_1:
 theorem k_nearest_neighbors_2:
   assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
   shows "\<forall>q \<in> (set_kdt kdt - set kns). \<forall>n \<in> set kns. sqed n p \<le> sqed q p"
-  using assms knn_sqed k_nearest_neighbors_def sledgehammer
+  using assms knn_sqed k_nearest_neighbors_def
   by (metis Diff_disjoint Diff_empty distinct.simps(1) empty_set sorted_wrt.simps(1))
 
 
