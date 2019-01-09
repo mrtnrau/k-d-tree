@@ -640,6 +640,11 @@ lemma aux3:
   shows "length (k_nearest_neighbors' k ns p kdt) = k"
   using assms using aux30 by (metis (no_types, lifting) Diff_eq_empty_iff knn_length knn_set min_absorb1 sup.absorb_iff1 sup_commute sup_left_idem)
 
+lemma aux31:
+  assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
+  shows "length (k_nearest_neighbors' k ns p kdt) = k"
+  using assms aux30 by (simp add: knn_length min_absorb1)
+
 lemma aux4:
   assumes "set xs \<supseteq> set ys" "length xs = length ys" "distinct xs" "distinct ys"
   shows "set xs = set ys"
