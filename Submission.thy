@@ -616,14 +616,7 @@ proof -
     using sorted_wrt_take_elim by blast
   thus ?thesis by (simp add: set_insort_key)
 qed
-
-lemma s0:
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "length ns \<ge> k"
-  shows "sqed (last (take k (insort_key (\<lambda>q. sqed q p) p' ns))) p \<le> sqed (last ns) p"
-  using assms
-  sorry
   
-
 
 
 
@@ -676,14 +669,6 @@ qed
 
 text\<open>The main theorem.\<close>
 
-(* 
-  TODO
-
-  Well, that one I could not proof.
-  This is the most promising unfinished attempt.
-
-*)
-
 lemma aux30:
   assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
   shows "size_kdt kdt + length ns \<ge> k"
@@ -715,7 +700,9 @@ lemma aux6:
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
-  thus ?case sorry (* TODO *)
+  hence "last ns \<in> set ns - set (take k (insort_key (\<lambda>q. sqed q p) p' ns))"
+    sorry (* TODO *)
+  thus ?case using Leaf sorted_wrt_insort_key_take_elim by auto
 next
   case (Node a s l r)
 
