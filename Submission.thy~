@@ -668,7 +668,7 @@ lemma aux6:
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
-  then show ?case sorry (* TODO *)
+  thus ?case sorry (* TODO *)
 next
   case (Node a s l r)
 
@@ -742,8 +742,6 @@ next
     have IHLR: "\<forall>n \<in> set ?cl - set ?knn. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
       using SORTED_L Node.IH(2) Node.prems(1,2,4) invar_r by blast
 
-    have "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?cl. sqed n' p \<le> sqed n p"
-      using IHL by blast
     have "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
     proof -
       consider (A) "set ns \<subseteq> set ?cl"
@@ -759,23 +757,16 @@ next
         thus ?thesis using IHL by blast
       next
         case C
-        hence "length ?cl = k \<and> length ?knn = k"
-          by (metis Diff_eq_empty_iff Groups.add_ac(2) aux31 knn_length le_add1 le_supE min_def)
-
-        have "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?cl. sqed n' p \<le> sqed n p"
-          using IHL by blast
-        hence Y: "\<forall>n \<in> set ns - set ?cl. sqed (last ?cl) p \<le> sqed n p"
-          using SORTED_L by (metis C DiffE Diff_empty Diff_eq_empty_iff \<open>length ?cl = k \<and> length ?knn = k\<close> append_butlast_last_id empty_set in_set_conv_decomp_last length_0_conv)
+        hence LCL: "length ?cl = k"
+          using aux31 by blast
+        hence LAST: "\<forall>n \<in> set ns - set ?cl. sqed (last ?cl) p \<le> sqed n p"
+          using IHL Node.prems(4) by (metis last_in_set leD length_0_conv less_imp_le)
 
         have "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?knn - set ?cl. sqed n' p \<le> sqed (last ?cl) p"
-          by (metis DiffD1 Node.prems(1,2,3,4) \<open>length ?cl = k \<and> length ?knn = k\<close> aux6 invar_r knn_sorted le_less sorted_wrt_mono_rel)
-        hence X: "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?knn - set ?cl. sqed n' p \<le> sqed n p"
-          using Y by force
-
-        have "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?knn \<inter> set ?cl. sqed n' p \<le> sqed n p"
-          using IHL by blast
-
-        then show ?thesis using X by blast
+          using aux6 LCL Node.prems invar_r knn_sorted by (metis (no_types, lifting) DiffD1 le_less)
+        hence "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?knn - set ?cl. sqed n' p \<le> sqed n p"
+          using LAST by force
+        thus ?thesis using IHL by blast
       qed
     qed
     hence "\<forall>n \<in> set ns - set ?knn. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
@@ -787,7 +778,43 @@ next
     thus ?thesis using IHR by auto
   next
     case D
-    then show ?thesis sorry (* TODO *)
+
+    let ?knn = "k_nearest_neighbors' k ?cr p l"
+
+    have IHRL: "\<forall>n \<in> set ?cr - set ?knn. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
+      using SORTED_R Node.IH(1) Node.prems(1,2,4) invar_l by blast
+
+    have "\<forall>n \<in> set ns - set ?cr. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
+    proof -
+      consider (A) "set ns \<subseteq> set ?cr"
+             | (B) "\<not> (set ns \<subseteq> set ?cr) \<and> set ?knn \<subseteq> set ?cr"
+             | (C) "\<not> (set ns \<subseteq> set ?cr) \<and> \<not> (set ?knn \<subseteq> set ?cr)"
+        by argo
+      thus ?thesis
+      proof cases
+        case A
+        thus ?thesis by blast
+      next
+        case B
+        thus ?thesis using IHR by blast
+      next
+        case C
+        hence LCR: "length ?cr = k"
+          using aux31 by blast
+        hence LAST: "\<forall>n \<in> set ns - set ?cr. sqed (last ?cr) p \<le> sqed n p"
+          using IHR Node.prems(4) by (metis last_in_set leD length_0_conv less_imp_le)
+
+        have "\<forall>n \<in> set ns - set ?cr. \<forall>n' \<in> set ?knn - set ?cr. sqed n' p \<le> sqed (last ?cr) p"
+          using aux6 LCR Node.prems invar_l knn_sorted by (metis (no_types, lifting) DiffD1 le_less)
+        hence "\<forall>n \<in> set ns - set ?cr. \<forall>n' \<in> set ?knn - set ?cr. sqed n' p \<le> sqed n p"
+          using LAST by force
+        thus ?thesis using IHR by blast
+      qed
+    qed
+    hence "\<forall>n \<in> set ns - set ?knn. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
+      using IHRL by auto
+
+    thus ?thesis using D by auto
   qed
 qed
 

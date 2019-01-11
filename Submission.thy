@@ -540,15 +540,89 @@ fun k_nearest_neighbors' :: "nat \<Rightarrow> point list \<Rightarrow> point \<
 
 text\<open>Auxiliary lemmas.\<close>
 
-lemma sorted_wrt_take:
+lemma
   assumes "sorted_wrt f xs"
-  shows "sorted_wrt f (take n xs)"
+  shows sorted_wrt_take: "sorted_wrt f (take n xs)"
+  and sorted_wrt_drop: "sorted_wrt f (drop n xs)"
 proof -
   have "sorted_wrt f (take n xs @ drop n xs)" 
     using assms by simp
-  thus "sorted_wrt f (take n xs)"
-    using sorted_wrt_append by blast
+  thus "sorted_wrt f (take n xs)" "sorted_wrt f (drop n xs)"
+    using sorted_wrt_append by blast+
 qed
+
+lemma sorted_wrt_insort_key:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
+  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (insort_key (\<lambda>q. sqed q p) p' ns)"
+  using assms
+  apply (induction ns)
+  apply (auto)
+  by (metis insert_iff le_cases set_insort_key)
+
+lemma sorted_wrt_insort_key_take:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
+  shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (take k (insort_key (\<lambda>q. sqed q p) p' ns))"
+proof -
+  have "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ((insort_key (\<lambda>q. sqed q p) p' ns))"
+    using assms sorted_wrt_insort_key by blast
+  thus ?thesis using sorted_wrt_take by blast
+qed
+
+lemma
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (xs @ [m] @ ys)"
+  shows sorted_wrt_prefix: "\<forall>x \<in> set xs. sqed x p \<le> sqed m p"
+  and sorted_wrt_suffix: "\<forall>y \<in> set ys. sqed m p \<le> sqed y p"
+  using assms sorted_wrt_append by (simp add: sorted_wrt_append)+
+
+lemma sorted_wrt_last_max:
+  assumes "sorted_wrt (\<lambda>a b. sqed a p \<le> sqed b p) ns"
+  shows "\<forall>n \<in> set ns. sqed n p \<le> sqed (last ns) p"
+proof (cases "ns = []")
+  case True
+  thus ?thesis by simp
+next
+  case False
+  then obtain ns' m where "ns = ns' @ [m]"
+    using rev_exhaust by blast
+  hence "sorted_wrt (\<lambda>a b. sqed a p \<le> sqed b p) (ns' @ [m])"
+    using assms by blast
+  thus ?thesis using sorted_wrt_prefix by (simp add: \<open>ns = ns' @ [m]\<close>)
+qed
+
+lemma sorted_wrt_take_elim:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
+  shows "\<forall>n \<in> set ns - set (take k ns). \<forall>n' \<in> set (take k ns). sqed n' p \<le> sqed n p"
+proof (cases "k \<ge> length ns")
+  case True
+  thus ?thesis by simp
+next
+  case False
+  hence "ns = (take k ns) @ [ns!k] @ (drop (k+1) ns)"
+    using id_take_nth_drop not_less by auto
+  then show ?thesis using assms 
+    sorted_wrt_prefix[of p "take k ns" "ns!k" "drop (k+1) ns"]
+    sorted_wrt_suffix[of p "take k ns" "ns!k" "drop (k+1) ns"]
+    by (smt DiffD1 DiffD2 UnE append_Cons append_Nil set_ConsD set_append)
+qed
+
+lemma sorted_wrt_insort_key_take_elim:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
+  shows "\<forall>n \<in> set ns \<union> {p'} - set (take k (insort_key (\<lambda>q. sqed q p) p' ns)). \<forall>n' \<in> set (take k (insort_key (\<lambda>q. sqed q p) p' ns)). sqed n' p \<le> sqed n p"
+proof -
+  let ?ns' = "insort_key (\<lambda>q. sqed q p) p' ns"
+  have "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ?ns'"
+    using assms sorted_wrt_insort_key by blast
+  hence "\<forall>n \<in> set ?ns' - set (take k ?ns'). \<forall>n' \<in> set (take k ?ns'). sqed n' p \<le> sqed n p"
+    using sorted_wrt_take_elim by blast
+  thus ?thesis by (simp add: set_insort_key)
+qed
+
+lemma s0:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "length ns \<ge> k"
+  shows "sqed (last (take k (insort_key (\<lambda>q. sqed q p) p' ns))) p \<le> sqed (last ns) p"
+  using assms
+  sorry
+  
 
 
 
@@ -563,9 +637,7 @@ lemma knn_sorted:
   assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
   shows "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (k_nearest_neighbors' k ns p kdt)"
   using assms
-  apply (induction kdt arbitrary: ns)
-  apply (auto simp add: Let_def)
-  by (metis sorted_insort_key sorted_map sorted_wrt_take)
+  by (induction kdt arbitrary: ns) (auto simp add: Let_def sorted_wrt_insort_key_take)
 
 lemma knn_set:
   shows "set (k_nearest_neighbors' k ns p kdt) \<subseteq> set_kdt kdt \<union> set ns"
@@ -612,17 +684,6 @@ text\<open>The main theorem.\<close>
 
 *)
 
-lemma aux10:
-  assumes "sorted_wrt (\<lambda>a b. sqed a p \<le> sqed b p) (ns @ [n])"
-  shows "\<forall>n' \<in> set ns. sqed n' p \<le> sqed n p"
-  using assms by (simp add: sorted_wrt_append)
-
-lemma aux11:
-  assumes "sorted_wrt (\<lambda>a b. sqed a p \<le> sqed b p) ns" "\<forall>q \<in> ps. sqed (last ns) p \<le> sqed q p"
-  shows "\<forall>q \<in> ps. \<forall>n \<in> set ns. sqed n p \<le> sqed q p"
-  using assms aux10[of p "butlast ns" "last ns"]
-  by (smt UnE append_butlast_last_id empty_iff empty_set set_ConsD set_append)
-
 lemma aux30:
   assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
   shows "size_kdt kdt + length ns \<ge> k"
@@ -641,20 +702,6 @@ lemma aux4:
   assumes "set xs \<supseteq> set ys" "length xs = length ys" "distinct xs" "distinct ys"
   shows "set xs = set ys"
   using assms finite_set card_subset_eq distinct_card by metis
-
-lemma aux5:
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "p' \<notin> set (take k (insort_key (\<lambda>q. sqed q p) p' ns))"
-  shows "\<forall>n \<in> set (take k (insort_key (\<lambda>q. sqed q p) p' ns)). sqed n p \<le> sqed p' p"
-  using assms
-  apply (induction ns arbitrary: k)
-  apply (auto)
-  by (smt set_take_subset empty_iff empty_set list.inject list.set_cases list.set_intros take_Cons')+
-
-lemma aux7:
-  assumes "\<forall>n \<in> set kns. sqed n p \<le> sqed (last cl) p" "\<forall>n \<in> set cl. sqed n p \<le> sqed (last ns) p" "length cl > 0" "length ns > 0"
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) cl"
-  shows "\<forall>n \<in> set kns. sqed n p \<le> sqed (last ns) p"
-  using assms by (smt Un_iff append_butlast_last_id length_0_conv list.set_intros(1) neq_iff set_append)
 
 lemma aux8:
   assumes "k > 0"
@@ -690,14 +737,14 @@ next
   hence "\<forall>n \<in> set (k_nearest_neighbors' k ?cl p r). sqed n p \<le> sqed (last ?cl) p"
     using SORTED_L Node.IH(2) Node.prems(1,2,5) invar_r by blast
   hence IHLR: "\<forall>n \<in> set (k_nearest_neighbors' k ?cl p r). sqed n p \<le> sqed (last ns) p"
-    using IHL aux7[of "k_nearest_neighbors' k ?cl p r" p ?cl ns]  Node.prems(3,4,5) SORTED_L aux8 less_le_trans by blast
+    by (smt IHL Node.prems(5) aux8 last_in_set length_0_conv neq0_conv)
 
   have "length ?cr \<ge> k"
     using knn_length Node.prems(4) by auto
   hence "\<forall>n \<in> set (k_nearest_neighbors' k ?cr p l). sqed n p \<le> sqed (last ?cr) p"
     using SORTED_R Node.IH(1) Node.prems(1,2,5) invar_l by blast
   hence IHRL: "\<forall>n \<in> set (k_nearest_neighbors' k ?cr p l). sqed n p \<le> sqed (last ns) p"
-    using IHR aux7[of "k_nearest_neighbors' k ?cr p l" p ?cr ns] Node.prems(3,4,5) SORTED_R aux8 less_le_trans by blast
+    by (smt IHR Node.prems(5) aux8 last_in_set length_0_conv not_gr0)
 
   show ?case using \<open>k \<le> length ?cr\<close> \<open>k \<le> length ?cl\<close> knn_length IHL IHR IHLR IHRL by (auto simp add: Let_def)
 qed
@@ -708,7 +755,10 @@ lemma aux2:
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
-  thus ?case sorry (* TODO *)
+  let ?ns' = "take k (insort_key (\<lambda>q. sqed q p) p' ns)"
+  have "\<forall>n \<in> set ns - set ?ns'. \<forall>n' \<in> set ?ns'. sqed n' p \<le> sqed n p"
+    using sorted_wrt_insort_key_take_elim Leaf.prems(3) by blast
+  thus ?case by auto
 next
   case (Node a s l r)
 
@@ -825,7 +875,7 @@ theorem knn_sqed:
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
-  thus ?case using aux5 by auto
+  thus ?case using sorted_wrt_insort_key_take_elim by auto
 next
   case (Node a s l r)
 
@@ -858,7 +908,7 @@ next
     hence "\<forall>q \<in> set_kdt r. sqed (last ?cl) p \<le> sqed q p"
       using Node.prems(1,2) cutoff_r sqed_com by metis
     hence "\<forall>q \<in> set_kdt r. \<forall>n \<in> set ?cl. sqed n p \<le> sqed q p"
-      using SORTED_L aux11 by blast
+      using SORTED_L sorted_wrt_last_max by fastforce
     thus ?thesis using IHL A by auto
   next
     case B
@@ -911,7 +961,7 @@ next
     hence "\<forall>q \<in> set_kdt l. sqed (last ?cr) p \<le> sqed q p"
       using Node.prems(1,2) cutoff_l sqed_com by smt
     hence "\<forall>q \<in> set_kdt l. \<forall>n \<in> set ?cr. sqed n p \<le> sqed q p"
-      using SORTED_R aux11 by blast
+      using SORTED_R sorted_wrt_last_max by fastforce
     thus ?thesis using IHR C by auto
   next
     case D
