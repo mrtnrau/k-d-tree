@@ -575,7 +575,7 @@ lemma
   using assms sorted_wrt_append by (simp add: sorted_wrt_append)+
 
 lemma sorted_wrt_last_max:
-  assumes "sorted_wrt (\<lambda>a b. sqed a p \<le> sqed b p) ns"
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
   shows "\<forall>n \<in> set ns. sqed n p \<le> sqed (last ns) p"
 proof (cases "ns = []")
   case True
@@ -584,7 +584,7 @@ next
   case False
   then obtain ns' m where "ns = ns' @ [m]"
     using rev_exhaust by blast
-  hence "sorted_wrt (\<lambda>a b. sqed a p \<le> sqed b p) (ns' @ [m])"
+  hence "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) (ns' @ [m])"
     using assms by blast
   thus ?thesis using sorted_wrt_prefix by (simp add: \<open>ns = ns' @ [m]\<close>)
 qed
@@ -616,7 +616,37 @@ proof -
     using sorted_wrt_take_elim by blast
   thus ?thesis by (simp add: set_insort_key)
 qed
-  
+
+lemma sorted_wrt_take_last_mono:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) xs" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ys" "sqed (last xs) p \<le> sqed (last ys) p"
+  assumes "length xs \<ge> k" "length ys \<ge> k" "k > 0"
+  shows "sqed (last (take k xs)) p \<le> sqed (last ys) p"
+  using assms
+  apply (induction xs arbitrary: k) 
+  apply (auto split: if_splits simp add: take_Cons')
+  using last_in_set order.trans by blast
+
+lemma sorted_wrt_insort_key_take_last_mono:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "length ns \<ge> k" "k > 0"
+  shows "sqed (last (take k (insort_key (\<lambda>q. sqed q p) p' ns))) p \<le> sqed (last ns) p"
+proof -
+  let ?ns' = "insort_key (\<lambda>q. sqed q p) p' ns"
+
+  show "sqed (last (take k ?ns')) p \<le> sqed (last ns) p"
+  proof (cases "sqed (last ?ns') p \<le> sqed (last ns) p")
+    case True
+    have "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ?ns'"
+      using assms(1) sorted_wrt_insort_key by blast
+    hence "sqed (last (take k ?ns')) p \<le> sqed (last ns) p"
+      using assms sorted_wrt_take_last_mono True by auto
+    thus ?thesis by blast
+  next
+    case False
+    hence "?ns' = ns @ [p]"
+      sorry
+    then show ?thesis sledgehammer
+  qed
+qed
 
 
 
@@ -700,9 +730,14 @@ lemma aux6:
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
-  hence "last ns \<in> set ns - set (take k (insort_key (\<lambda>q. sqed q p) p' ns))"
-    sorry (* TODO *)
-  thus ?case using Leaf sorted_wrt_insort_key_take_elim by auto
+  let ?ns' = "take k (insort_key (\<lambda>q. sqed q p) p' ns)"
+  have "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ?ns'"
+    using Leaf.prems(3) sorted_wrt_insort_key_take by blast
+  hence "\<forall>n \<in> set ?ns'. sqed n p \<le> sqed (last ?ns') p"
+    using sorted_wrt_last_max by blast
+  hence "\<forall>n \<in> set ?ns'. sqed n p \<le> sqed (last ns) p"
+    using Leaf.prems(3,4,5) sorted_wrt_insort_key_take_last_mono[of p ns k p'] by fastforce
+  thus ?case by simp
 next
   case (Node a s l r)
 
