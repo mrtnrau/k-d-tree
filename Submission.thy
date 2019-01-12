@@ -505,8 +505,6 @@ corollary
 
 
 
-(* I could not finish the hardest part of the main knn theorem :( *)
-
 text \<open>
   Verifying k nearest neighbor search on the k-d tree.
 
@@ -618,13 +616,16 @@ proof -
 qed
 
 lemma sorted_wrt_take_last_mono:
-  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) xs" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ys" "sqed (last xs) p \<le> sqed (last ys) p"
-  assumes "length xs \<ge> k" "length ys \<ge> k" "k > 0"
-  shows "sqed (last (take k xs)) p \<le> sqed (last ys) p"
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "length ns \<ge> k" "k > 0"
+  shows "sqed (last (take k ns)) p \<le> sqed (last ns) p"
   using assms
-  apply (induction xs arbitrary: k) 
-  apply (auto split: if_splits simp add: take_Cons')
-  using last_in_set order.trans by blast
+  by (induction ns arbitrary: k) (auto simp add: take_Cons')
+
+lemma sorted_wrt_insort_key_last_eq:
+  assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "insort_key (\<lambda>q. sqed q p) p' ns \<noteq> ns @ [p']"
+  shows "last (insort_key (\<lambda>q. sqed q p) p' ns) = last ns"
+  using assms
+  by (induction ns) (auto)
 
 lemma sorted_wrt_insort_key_take_last_mono:
   assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "length ns \<ge> k" "k > 0"
@@ -633,20 +634,19 @@ proof -
   let ?ns' = "insort_key (\<lambda>q. sqed q p) p' ns"
 
   show "sqed (last (take k ?ns')) p \<le> sqed (last ns) p"
-  proof (cases "sqed (last ?ns') p \<le> sqed (last ns) p")
+  proof (cases "?ns' = ns @ [p']")
     case True
-    have "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ?ns'"
-      using assms(1) sorted_wrt_insort_key by blast
-    hence "sqed (last (take k ?ns')) p \<le> sqed (last ns) p"
-      using assms sorted_wrt_take_last_mono True by auto
-    thus ?thesis by blast
+    thus ?thesis using assms sorted_wrt_take_last_mono by auto
   next
     case False
-    hence "?ns' = ns @ [p]"
-      sorry
-    then show ?thesis sledgehammer
+    hence EQ: "last ?ns' = last ns"
+      using sorted_wrt_insort_key_last_eq assms by blast
+    have "sqed (last (take k ?ns')) p \<le> sqed (last ?ns') p"
+      using assms sorted_wrt_take_last_mono sorted_wrt_insort_key by simp
+    thus ?thesis using EQ by simp
   qed
 qed
+
 
 
 
@@ -655,6 +655,21 @@ text\<open>The main lemmas.\<close>
 lemma knn_length:
   "length (k_nearest_neighbors' k ns p kdt) = min k (size_kdt kdt + length ns)"
   by (induction kdt arbitrary: ns) (auto simp add: Let_def)
+
+lemma knn_length_gt_0:
+  assumes "k > 0"
+  shows "length (k_nearest_neighbors' k ns p kdt) > 0"
+  using assms
+  by (induction kdt arbitrary: ns) (auto simp add: Let_def)
+
+lemma knn_length_gt_eq_k:
+  assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
+  shows "size_kdt kdt + length ns \<ge> k"
+  using assms knn_length
+  apply (induction kdt arbitrary: ns)
+  apply (auto simp add: set_insort_key)
+  using linear set_insort_key apply fastforce
+  by (smt set_insort_key add.assoc add.commute le_add1 le_add2 min.coboundedI2 min_def subsetCE)+
 
 lemma knn_sorted:
   assumes "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns"
@@ -697,32 +712,7 @@ qed
 
 
 
-text\<open>The main theorem.\<close>
-
-lemma aux30:
-  assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
-  shows "size_kdt kdt + length ns \<ge> k"
-  using assms knn_length
-  apply (induction kdt arbitrary: ns)
-  apply (auto simp add: set_insort_key)
-  using linear set_insort_key apply fastforce
-  by (smt set_insort_key add.assoc add.commute le_add1 le_add2 min.coboundedI2 min_def subsetCE)+
-
-lemma aux31:
-  assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
-  shows "length (k_nearest_neighbors' k ns p kdt) = k"
-  using assms aux30 by (simp add: knn_length min_absorb1)
-
-lemma aux4:
-  assumes "set xs \<supseteq> set ys" "length xs = length ys" "distinct xs" "distinct ys"
-  shows "set xs = set ys"
-  using assms finite_set card_subset_eq distinct_card by metis
-
-lemma aux8:
-  assumes "k > 0"
-  shows "length (k_nearest_neighbors' k ns p kdt) > 0"
-  using assms
-  by (induction kdt arbitrary: ns) (auto simp add: Let_def)
+text\<open>Three steps to the main theorem.\<close>
 
 lemma aux6:
   assumes "invar d kdt" "dim p = d" "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ns" "length ns \<ge> k" "k > 0"
@@ -759,14 +749,14 @@ next
   hence "\<forall>n \<in> set (k_nearest_neighbors' k ?cl p r). sqed n p \<le> sqed (last ?cl) p"
     using SORTED_L Node.IH(2) Node.prems(1,2,5) invar_r by blast
   hence IHLR: "\<forall>n \<in> set (k_nearest_neighbors' k ?cl p r). sqed n p \<le> sqed (last ns) p"
-    by (smt IHL Node.prems(5) aux8 last_in_set length_0_conv neq0_conv)
+    by (smt IHL Node.prems(5) knn_length_gt_0 last_in_set length_0_conv neq0_conv)
 
   have "length ?cr \<ge> k"
     using knn_length Node.prems(4) by auto
   hence "\<forall>n \<in> set (k_nearest_neighbors' k ?cr p l). sqed n p \<le> sqed (last ?cr) p"
     using SORTED_R Node.IH(1) Node.prems(1,2,5) invar_l by blast
   hence IHRL: "\<forall>n \<in> set (k_nearest_neighbors' k ?cr p l). sqed n p \<le> sqed (last ns) p"
-    by (smt IHR Node.prems(5) aux8 last_in_set length_0_conv not_gr0)
+    by (smt IHR Node.prems(5) knn_length_gt_0 last_in_set length_0_conv not_gr0)
 
   show ?case using \<open>k \<le> length ?cr\<close> \<open>k \<le> length ?cl\<close> knn_length IHL IHR IHLR IHRL by (auto simp add: Let_def)
 qed
@@ -830,7 +820,7 @@ next
       next
         case C
         hence LCL: "length ?cl = k"
-          using aux31 by blast
+          using knn_length_gt_eq_k knn_length by fastforce
         hence LAST: "\<forall>n \<in> set ns - set ?cl. sqed (last ?cl) p \<le> sqed n p"
           using IHL Node.prems(4) by (metis last_in_set leD length_0_conv less_imp_le)
 
@@ -872,7 +862,7 @@ next
       next
         case C
         hence LCR: "length ?cr = k"
-          using aux31 by blast
+          using knn_length_gt_eq_k knn_length by fastforce
         hence LAST: "\<forall>n \<in> set ns - set ?cr. sqed (last ?cr) p \<le> sqed n p"
           using IHR Node.prems(4) by (metis last_in_set leD length_0_conv less_imp_le)
 
@@ -964,9 +954,9 @@ next
       next
         case B
         hence "length ?cl = length ?knn"
-          using aux31 knn_length by fastforce
+          using knn_length_gt_eq_k knn_length by fastforce
         hence "set ?cl = set ?knn"
-          using B DISTINCT_KNN DISTINCT_L aux4 by fastforce
+          using B DISTINCT_KNN DISTINCT_L by (simp add: card_subset_eq distinct_card)
         thus ?thesis using IHL by blast
       next
         case C
@@ -1017,9 +1007,9 @@ next
       next
         case B
         hence "length ?cr = length ?knn"
-          using aux31 knn_length by fastforce
+          using knn_length_gt_eq_k knn_length by fastforce
         hence "set ?cr = set ?knn"
-          using B DISTINCT_KNN DISTINCT_R aux4 by fastforce
+          using B DISTINCT_KNN DISTINCT_R by (simp add: card_subset_eq distinct_card)
         thus ?thesis using IHR by blast
       next
         case C
