@@ -698,18 +698,18 @@ text\<open>Last auxiliary lemma and the main theorem.\<close>
 
 lemma knn_le_last_ns:
   assumes "invar d kdt" "dim p = d" "swrtp p ns" "length ns \<ge> k" "k > 0"
-  shows "\<forall>n \<in> set (k_nearest_neighbors' k ns p kdt). sqed n p \<le> sqed (last ns) p"
+  shows "sqed (last (k_nearest_neighbors' k ns p kdt)) p \<le> sqed (last ns) p"
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
   let ?ns' = "take k (insortp p p' ns)"
-  have "sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p) ?ns'"
+  have "swrtp p ?ns'"
     using Leaf.prems(3) sorted_wrt_insort_key_take by simp
   hence "\<forall>n \<in> set ?ns'. sqed n p \<le> sqed (last ?ns') p"
     using sorted_wrt_last_max by simp
   hence "\<forall>n \<in> set ?ns'. sqed n p \<le> sqed (last ns) p"
-    using Leaf.prems(3,4,5) sorted_wrt_insort_key_take_last_mono[of p ns k p'] by fastforce
-  thus ?case by simp
+    using Leaf.prems(3,4) sorted_wrt_insort_key_take_last_mono[of p ns k p'] by fastforce
+  thus ?case by (simp add: Leaf.prems(5))
 next
   case (Node a s l r)
 
@@ -718,33 +718,25 @@ next
 
   have "length ?cl \<ge> k"
     using knn_length Node.prems(4) by auto
-  hence "\<forall>n \<in> set (k_nearest_neighbors' k ?cl p r). sqed n p \<le> sqed (last ?cl) p"
+  hence "sqed (last (k_nearest_neighbors' k ?cl p r)) p \<le> sqed (last ?cl) p"
     using knn_sorted Node.IH(2) Node.prems(1,2,3,5) invar_r by blast
-  hence IHLR: "\<forall>n \<in> set (k_nearest_neighbors' k ?cl p r). sqed n p \<le> sqed (last ns) p"
-    using Node.IH(1) Node.prems invar_l knn_length_gt_0 by (smt last_in_set length_0_conv not_gr0)
+  hence IHLR: "sqed (last (k_nearest_neighbors' k ?cl p r)) p \<le> sqed (last ns) p"
+    using Node.IH(1) Node.prems invar_l knn_length_gt_0 by smt
 
   have "length ?cr \<ge> k"
     using knn_length Node.prems(4) by auto
-  hence "\<forall>n \<in> set (k_nearest_neighbors' k ?cr p l). sqed n p \<le> sqed (last ?cr) p"
+  hence "sqed (last (k_nearest_neighbors' k ?cr p l)) p \<le> sqed (last ?cr) p"
     using knn_sorted Node.IH(1) Node.prems(1,2,3,5) invar_l by blast
-  hence IHRL: "\<forall>n \<in> set (k_nearest_neighbors' k ?cr p l). sqed n p \<le> sqed (last ns) p"
-    using Node.IH(2) Node.prems invar_r knn_length_gt_0 by (smt last_in_set length_0_conv not_gr0)
+  hence IHRL: "sqed (last (k_nearest_neighbors' k ?cr p l)) p \<le> sqed (last ns) p"
+    using Node.IH(2) Node.prems invar_r knn_length_gt_0 by smt
 
   show ?case using Node IHLR IHRL by (auto simp add: Let_def)
 qed
 
-text\<open>
-  Well that one did get pretty long and ugly...
-  I am sure there is a much shorter and more elegant way to prove this but here it is...
-
-  Case (A) is basically identical to case (C). No need to read (C).
-  Case (B) is basically identical to case (D). No need to read (D).
-\<close>
-
 theorem knn_sqed:
   assumes "invar d kdt" "dim p = d"
   assumes "swrtp p ns" "set ns \<inter> set_kdt kdt = {}" "distinct ns" "k > 0"
-  shows "\<forall>q \<in> set_kdt kdt \<union> set ns - set (k_nearest_neighbors' k ns p kdt). \<forall>n \<in> set (k_nearest_neighbors' k ns p kdt). sqed n p \<le> sqed q p"
+  shows "\<forall>q \<in> set_kdt kdt \<union> set ns - set (k_nearest_neighbors' k ns p kdt). sqed (last (k_nearest_neighbors' k ns p kdt)) p \<le> sqed q p"
   using assms
 proof (induction kdt arbitrary: ns)
   case (Leaf p')
@@ -755,9 +747,9 @@ next
   let ?cl = "k_nearest_neighbors' k ns p l"
   let ?cr = "k_nearest_neighbors' k ns p r"
 
-  have IHL: "\<forall>q \<in> set_kdt l \<union> set ns - set ?cl. \<forall>n \<in> set ?cl. sqed n p \<le> sqed q p"
+  have IHL: "\<forall>q \<in> set_kdt l \<union> set ns - set ?cl. sqed (last ?cl) p \<le> sqed q p"
     using Node.IH(1) Node.prems invar_l invar_set by blast
-  have IHR: "\<forall>q \<in> set_kdt r \<union> set ns - set ?cr. \<forall>n \<in> set ?cr. sqed n p \<le> sqed q p"
+  have IHR: "\<forall>q \<in> set_kdt r \<union> set ns - set ?cr. sqed (last ?cr) p \<le> sqed q p"
     using Node.IH(2) Node.prems invar_r invar_set by blast
 
   have SORTED_L: "swrtp p ?cl"
@@ -780,175 +772,96 @@ next
     case A
     hence "\<forall>q \<in> set_kdt r. sqed (last ?cl) p \<le> sqed q p"
       using Node.prems(1,2) cutoff_r sqed_com by metis
-    hence "\<forall>q \<in> set_kdt r. \<forall>n \<in> set ?cl. sqed n p \<le> sqed q p"
-      using SORTED_L sorted_wrt_last_max by fastforce
     thus ?thesis using IHL A by auto
   next
     case B
 
     let ?knn = "k_nearest_neighbors' k ?cl p r"
 
-    have "set ?cl \<subseteq> set_kdt l \<union> set ns \<and> set_kdt l \<inter> set_kdt r = {} \<and> set ns \<inter> set_kdt r = {}"
-      using knn_set invar_distinct Node.prems(1,4) by auto
-    hence CLR: "set ?cl \<inter> set_kdt r = {}"
-      by blast
-    hence IHLR: "\<forall>q \<in> set_kdt r \<union> set ?cl - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-      using SORTED_L DISTINCT_L Node.IH(2) Node.prems(1,2,6) invar_r by blast
+    have "set ?cl \<subseteq> set_kdt l \<union> set ns \<and> set ns \<inter> set_kdt r = {}"
+      using knn_set Node.prems(1,4) by auto
+    hence IHLR: "\<forall>q \<in> set_kdt r \<union> set ?cl - set ?knn. sqed (last ?knn) p \<le> sqed q p"
+      using SORTED_L DISTINCT_L Node.IH(2) Node.prems(1,2,6) invar_r invar_distinct by blast
 
-    (*
-      This is what we have to proof:
+    have "\<forall>n \<in> set ns - set ?cl. sqed (last ?knn) p \<le> sqed n p"
+    proof standard
+      fix n
+      assume N: "n \<in> set ns - set ?cl"
 
-      \<forall>q \<in> set_kdt l           - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p (L)
-      \<forall>q \<in> set_kdt r \<union> set ns  - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p (R)
-
-      We have:
-      
-      \<forall>q \<in> set_kdt l \<union> set ns  - set ?cl . \<forall>n \<in> set ?cl . sqed n p \<le> sqed q p (IHL)
-      \<forall>q \<in> set_kdt r \<union> set ?cl - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p (IHLR)
-
-      (X):
-      If we squint we see that (IHLR) ~ (R). We just have to show that the distance to p of every
-      element in the final nearest neighbors list knn is less or equal to the distance to p of all
-      elements that get removed from ns during the first recursion step which leads to the nearest
-      neighbor list cl.
-
-      If we squint again at (IHL):
-      \<forall>q \<in> set ns  - set ?cl . \<forall>n \<in> set ?cl . sqed n p \<le> sqed q p (IHL)
-                                        ?knn would be perfect      (X)
-
-      (Y):
-      Now we try to go from (IHLR) \<leadsto> (L): We just have to show that the distance to p of every
-      element in the final nearest neighbors list knn is less or equal to the distance to p of all
-      elements of the left subtree that were not included during the first recursion step which
-      leads to the nearest neighbor list cl.
-
-      \<forall>q \<in>   set ?cl - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p (IHLR)
-      \<forall>q \<in> set_kdt l - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p (L)
-
-      \<forall>q \<in> set_kdt l - set ?cl . \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p (Y)
-    *)
-
-    have X: "\<forall>n \<in> set ns - set ?cl. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
-    proof (cases "\<not> (set ns \<subseteq> set ?cl) \<and> \<not> (set ?knn \<subseteq> set ?cl)")
-      case True
-      hence LCL: "length ?cl = k"
-        using knn_length_gt_eq_k knn_length by fastforce
-      hence LAST: "\<forall>n \<in> set ns - set ?cl. sqed (last ?cl) p \<le> sqed n p"
-        using True IHL Node.prems(4) knn_length
-        by (metis DiffE DiffI Un_iff last_in_set le_add2 le_less length_0_conv min_absorb1)
-
-      have "\<forall>n \<in> set ?knn. sqed n p \<le> sqed (last ?cl) p"
-        using knn_le_last_ns LCL Node.prems invar_r knn_sorted by (metis order_refl)
-      thus ?thesis using LAST by force
-    next
-      case False
-      thus ?thesis using IHL by blast
+      hence "length ?cl = k"
+        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+      hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cl) p"
+        using knn_le_last_ns SORTED_L invar_r Node.prems(1,2,6) by (metis order_refl)
+      have "sqed (last ?cl) p \<le> sqed n p"
+        using IHL N by blast
+      thus "sqed (last ?knn) p \<le> sqed n p" using LAST by argo
     qed
+    hence R: "\<forall>q \<in> set_kdt r \<union> set ns - set ?knn. sqed (last ?knn) p \<le> sqed q p"
+      using IHLR by auto
 
-    have Y: "\<forall>q \<in> set_kdt l - set ?cl. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-    proof -
-      consider (A) "   set ?cl \<supseteq> set_kdt l"
-             | (B) "\<not> (set ?cl \<supseteq> set_kdt l) \<and>    set ?knn \<supseteq> set ?cl"
-             | (C) "\<not> (set ?cl \<supseteq> set_kdt l) \<and> \<not> (set ?knn \<supseteq> set ?cl)"
-        by argo
-      thus ?thesis
-      proof cases
-        case A
-        thus ?thesis by blast
-      next
-        case B
-        hence LEN: "length ?cl = length ?knn"
-          using knn_length_gt_eq_k knn_length by fastforce
-        have DISTINCT_KNN: "distinct ?knn"
-          using knn_distinct CLR DISTINCT_L Node.prems(1,2) invar_r by blast
-        hence "set ?cl = set ?knn"
-          using B LEN DISTINCT_L by (simp add: card_subset_eq distinct_card)
-        thus ?thesis using IHL by blast
-      next
-        case C
-        have IHLL: "\<forall>q \<in> set_kdt l - set ?cl. \<forall>n \<in> set ?cl. sqed n p \<le> sqed q p"
-          using IHL by blast
-        have "\<forall>n \<in> set ?cl - set ?knn. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
-          using IHLR by blast
-        thus ?thesis using C IHLL by (smt DiffI subsetI)
-      qed             
+    have "\<forall>q \<in> set_kdt l - set ?cl. sqed (last ?knn) p \<le> sqed q p"
+    proof standard
+      fix q
+      assume Q: "q \<in> set_kdt l - set ?cl"
+
+      hence "length ?cl = k"
+        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+      hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cl) p"
+        using knn_le_last_ns SORTED_L invar_r Node.prems(1,2,6) by (metis order_refl)
+      have "sqed (last ?cl) p \<le> sqed q p"
+        using IHL Q by blast
+      thus "sqed (last ?knn) p \<le> sqed q p" using LAST by argo
     qed
-
-    have L: "\<forall>q \<in> set_kdt l - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-      using IHLR Y by blast   
-    have R: "\<forall>q \<in> set_kdt r \<union> set ns - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-      using IHLR X by auto
+    hence L: "\<forall>q \<in> set_kdt l - set ?knn. sqed (last ?knn) p \<le> sqed q p"
+      using IHLR by blast
 
     show ?thesis using B R L by auto
   next
     case C
     hence "\<forall>q \<in> set_kdt l. sqed (last ?cr) p \<le> sqed q p"
       using Node.prems(1,2) cutoff_l sqed_com by smt
-    hence "\<forall>q \<in> set_kdt l. \<forall>n \<in> set ?cr. sqed n p \<le> sqed q p"
-      using SORTED_R sorted_wrt_last_max by fastforce
     thus ?thesis using IHR C by auto
   next
     case D
 
     let ?knn = "k_nearest_neighbors' k ?cr p l"
 
-    have "set ?cr \<subseteq> set_kdt r \<union> set ns \<and> set_kdt l \<inter> set_kdt r = {} \<and> set ns \<inter> set_kdt l = {}"
-      using knn_set invar_distinct Node.prems(1,4) by auto
-    hence CRL: "set ?cr \<inter> set_kdt l = {}"
-      by blast
-    hence IHRL: "\<forall>q \<in> set_kdt l \<union> set ?cr - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-      using SORTED_R DISTINCT_R Node.IH(1) Node.prems(1,2,6) invar_l by blast
+    have "set ?cr \<subseteq> set_kdt r \<union> set ns \<and> set ns \<inter> set_kdt l = {}"
+      using knn_set Node.prems(1,4) by auto
+    hence IHRL: "\<forall>q \<in> set_kdt l \<union> set ?cr - set ?knn. sqed (last ?knn) p \<le> sqed q p"
+      using SORTED_R DISTINCT_R Node.IH(1) Node.prems(1,2,6) invar_l invar_distinct by blast
 
-    have X: "\<forall>n \<in> set ns - set ?cr. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
-    proof (cases "\<not> (set ns \<subseteq> set ?cr) \<and> \<not> (set ?knn \<subseteq> set ?cr)")
-      case True
-      hence LCR: "length ?cr = k"
-        using knn_length_gt_eq_k knn_length by fastforce
-      hence LAST: "\<forall>n \<in> set ns - set ?cr. sqed (last ?cr) p \<le> sqed n p"
-        using True IHR Node.prems(4) knn_length
-        by (metis DiffE DiffI Un_iff last_in_set le_add2 le_less length_0_conv min_absorb1)
+    have "\<forall>n \<in> set ns - set ?cr. sqed (last ?knn) p \<le> sqed n p"
+    proof standard
+      fix n
+      assume N: "n \<in> set ns - set ?cr"
 
-      have "\<forall>n \<in> set ?knn. sqed n p \<le> sqed (last ?cr) p"
-        using knn_le_last_ns LCR Node.prems invar_l knn_sorted by (metis order_refl)
-      thus ?thesis using LAST by force
-    next
-      case False
-      thus ?thesis using IHR by blast
+      hence "length ?cr = k"
+        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+      hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cr) p"
+        using knn_le_last_ns SORTED_R invar_l Node.prems(1,2,6) by (metis order_refl)
+      have "sqed (last ?cr) p \<le> sqed n p"
+        using IHR N by blast
+      thus "sqed (last ?knn) p \<le> sqed n p" using LAST by argo
     qed
+    hence R: "\<forall>q \<in> set_kdt l \<union> set ns - set ?knn. sqed (last ?knn) p \<le> sqed q p"
+      using IHRL by auto
 
-    have Y: "\<forall>q \<in> set_kdt r - set ?cr. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-    proof -
-      consider (A) "   set ?cr \<supseteq> set_kdt r"
-             | (B) "\<not> (set ?cr \<supseteq> set_kdt r) \<and>    set ?knn \<supseteq> set ?cr"
-             | (C) "\<not> (set ?cr \<supseteq> set_kdt r) \<and> \<not> (set ?knn \<supseteq> set ?cr)"
-        by argo
-      thus ?thesis
-      proof cases
-        case A
-        thus ?thesis by blast
-      next
-        case B
-        hence LEN: "length ?cr = length ?knn"
-          using knn_length_gt_eq_k knn_length by fastforce
-        have DISTINCT_KNN: "distinct ?knn"
-          using knn_distinct CRL DISTINCT_R Node.prems(1,2) invar_l by blast
-        hence "set ?cr = set ?knn"
-          using B LEN DISTINCT_R by (simp add: card_subset_eq distinct_card)
-        thus ?thesis using IHR by blast
-      next
-        case C
-        have IHRR: "\<forall>q \<in> set_kdt r - set ?cr. \<forall>n \<in> set ?cr. sqed n p \<le> sqed q p"
-          using IHR by blast
-        have "\<forall>n \<in> set ?cr - set ?knn. \<forall>n' \<in> set ?knn. sqed n' p \<le> sqed n p"
-          using IHRL by blast
-        thus ?thesis using C IHRR by (smt DiffI subsetI)
-      qed             
+    have "\<forall>q \<in> set_kdt r - set ?cr. sqed (last ?knn) p \<le> sqed q p"
+    proof standard
+      fix q
+      assume Q: "q \<in> set_kdt r - set ?cr"
+
+      hence "length ?cr = k"
+        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+      hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cr) p"
+        using knn_le_last_ns SORTED_R invar_l Node.prems(1,2,6) by (metis order_refl)
+      have "sqed (last ?cr) p \<le> sqed q p"
+        using IHR Q by blast
+      thus "sqed (last ?knn) p \<le> sqed q p" using LAST by argo
     qed
-
-    have L: "\<forall>q \<in> set_kdt l \<union> set ns - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-      using IHRL X by blast  
-    have R: "\<forall>q \<in> set_kdt r - set ?knn. \<forall>n \<in> set ?knn. sqed n p \<le> sqed q p"
-      using IHRL Y by blast
+    hence L: "\<forall>q \<in> set_kdt r - set ?knn. sqed (last ?knn) p \<le> sqed q p"
+      using IHRL by blast
 
     show ?thesis using D R L by auto
   qed
@@ -976,8 +889,10 @@ theorem k_nearest_neighbors_2:
   assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
   shows "\<forall>q \<in> (set_kdt kdt - set kns). \<forall>n \<in> set kns. sqed n p \<le> sqed q p"
 proof -
-  have "k > 0 \<longrightarrow> (\<forall>q \<in> set_kdt kdt - set kns. \<forall>n \<in> set kns. sqed n p \<le> sqed q p)"
-    using assms k_nearest_neighbors_def knn_sqed[of d kdt p "[]" k] distinct.simps(1) sorted_wrt.simps(1) by simp
+  have "k > 0 \<longrightarrow> (\<forall>q \<in> set_kdt kdt - set kns. sqed (last kns) p \<le> sqed q p)"
+    using assms k_nearest_neighbors_def knn_sqed by auto
+  hence "k > 0 \<longrightarrow> (\<forall>q \<in> set_kdt kdt - set kns. \<forall>n \<in> set kns. sqed n p \<le> sqed q p)"
+    by (smt assms k_nearest_neighbors_1(2) sorted_wrt_last_max)
   thus "\<forall>q \<in> (set_kdt kdt - set kns). \<forall>n \<in> set kns. sqed n p \<le> sqed q p"
     using assms k_nearest_neighbors_def k_nearest_neighbors_1(1) by (metis length_pos_if_in_set min_less_iff_conj)
 qed
