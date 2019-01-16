@@ -646,12 +646,11 @@ lemma knn_length_gt_0:
 
 lemma knn_length_gt_eq_k:
   assumes "(set_kdt kdt \<union> set ns) - set (k_nearest_neighbors' k ns p kdt) \<noteq> {}"
-  shows "size_kdt kdt + length ns \<ge> k"
-  using assms knn_length
+  shows "length (k_nearest_neighbors' k ns p kdt) = k"
+  using assms knn_length set_insort_key
   apply (induction kdt arbitrary: ns)
-  apply (auto simp add: set_insort_key)
-  using linear set_insort_key apply fastforce
-  by (smt set_insort_key add.assoc add.commute le_add1 le_add2 min.coboundedI2 min_def subsetCE)+
+  apply (auto simp add: min_def Let_def)
+  by fastforce+
 
 lemma knn_sorted:
   assumes "swrtp p ns"
@@ -661,9 +660,10 @@ lemma knn_sorted:
 
 lemma knn_set:
   shows "set (k_nearest_neighbors' k ns p kdt) \<subseteq> set_kdt kdt \<union> set ns"
+  using set_insort_key in_set_takeD
   apply (induction kdt arbitrary: ns)
   apply (auto simp add: Let_def)
-  using in_set_takeD set_insort_key by fastforce
+  by fastforce
 
 lemma knn_distinct:
   assumes "invar d kdt" "dim p = d" "distinct ns" "set ns \<inter> set_kdt kdt = {}"
@@ -708,8 +708,8 @@ proof (induction kdt arbitrary: ns)
   hence "\<forall>n \<in> set ?ns'. sqed n p \<le> sqed (last ?ns') p"
     using sorted_wrt_last_max by simp
   hence "\<forall>n \<in> set ?ns'. sqed n p \<le> sqed (last ns) p"
-    using Leaf.prems(3,4) sorted_wrt_insort_key_take_last_mono[of p ns k p'] by fastforce
-  thus ?case by (simp add: Leaf.prems(5))
+    using Leaf.prems(3,4,5) sorted_wrt_insort_key_take_last_mono by smt
+  thus ?case using Leaf.prems(5) by simp
 next
   case (Node a s l r)
 
@@ -758,9 +758,9 @@ next
     using knn_sorted Node.prems(3) by blast
 
   have DISTINCT_L: "distinct ?cl"
-    using Node.prems(1,2,4,5) knn_distinct invar_set invar_l by (metis Un_empty inf_sup_distrib1)
+    using Node.prems(1,2,4,5) knn_distinct invar_set invar_l by blast
   have DISTINCT_R: "distinct ?cr"
-    using Node.prems(1,2,4,5) knn_distinct invar_set invar_r by (metis Un_empty inf_sup_distrib1)
+    using Node.prems(1,2,4,5) knn_distinct invar_set invar_r by blast
 
   consider (A) "p!a \<le> s \<and> length ?cl = k \<and> sqed p (last ?cl) \<le> sqed' s (p!a)"
          | (B) "p!a \<le> s \<and> \<not>(length ?cl = k \<and> sqed p (last ?cl) \<le> sqed' s (p!a))"
@@ -789,7 +789,7 @@ next
       assume N: "n \<in> set ns - set ?cl"
 
       hence "length ?cl = k"
-        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+        using knn_length_gt_eq_k by blast
       hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cl) p"
         using knn_le_last_ns SORTED_L invar_r Node.prems(1,2,6) by (metis order_refl)
       have "sqed (last ?cl) p \<le> sqed n p"
@@ -805,7 +805,7 @@ next
       assume Q: "q \<in> set_kdt l - set ?cl"
 
       hence "length ?cl = k"
-        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+        using knn_length_gt_eq_k by blast
       hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cl) p"
         using knn_le_last_ns SORTED_L invar_r Node.prems(1,2,6) by (metis order_refl)
       have "sqed (last ?cl) p \<le> sqed q p"
@@ -837,7 +837,7 @@ next
       assume N: "n \<in> set ns - set ?cr"
 
       hence "length ?cr = k"
-        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+        using knn_length_gt_eq_k by blast
       hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cr) p"
         using knn_le_last_ns SORTED_R invar_l Node.prems(1,2,6) by (metis order_refl)
       have "sqed (last ?cr) p \<le> sqed n p"
@@ -853,7 +853,7 @@ next
       assume Q: "q \<in> set_kdt r - set ?cr"
 
       hence "length ?cr = k"
-        using knn_length_gt_eq_k knn_length by (metis DiffE DiffI UnCI empty_iff min_def)
+        using knn_length_gt_eq_k by blast
       hence LAST: "sqed (last ?knn) p \<le> sqed (last ?cr) p"
         using knn_le_last_ns SORTED_R invar_l Node.prems(1,2,6) by (metis order_refl)
       have "sqed (last ?cr) p \<le> sqed q p"
