@@ -64,14 +64,14 @@ type_synonym axis = nat
 type_synonym dimension = nat
 type_synonym split = real
 
-datatype kdt =
-  Leaf point
-| Node axis split kdt kdt
-
 definition dim :: "point \<Rightarrow> nat"  where
   "dim p = length p"
 
 declare dim_def[simp]
+
+datatype kdt =
+  Leaf point
+| Node axis split kdt kdt
 
 
 
@@ -136,7 +136,6 @@ text \<open>
   the nearest neighbor algorithm possible.
 \<close>
 
-(* finds an axis a where the values of p\<^sub>0!a and p\<^sub>1!a differ or returns None *)
 fun find_axis' :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> axis option" where
   "find_axis' 0 p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!0 \<noteq> p\<^sub>1!0 then Some 0 else None)"
 | "find_axis' a p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!a \<noteq> p\<^sub>1!a then Some a else find_axis' (a - 1) p\<^sub>0 p\<^sub>1)"
@@ -190,7 +189,7 @@ lemma find_axis_Some_2:
 
 lemma find_axis_None:
   "dim p\<^sub>0 = dim p\<^sub>1 \<Longrightarrow> (p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
-  using find_axis_def find_axis'_None nth_equalityI sledgehammer
+  using find_axis_def find_axis'_None nth_equalityI
   by (metis One_nat_def dim_def Suc_pred length_greater_0_conv less_Suc_eq_le)
 
 
@@ -379,13 +378,10 @@ proof standard
 
   let ?q' = "p[a := (q!a)]"
 
-  (* The distance between p and q is greater or equal the minimized distance between p and q' *)
   have "sqed p q \<ge> sqed' (p!a) (?q'!a)"
     using A minimize_sqed assms(1,2) invar_axis_lt_d invar_dim invar_r by blast
-  (* Hence it is greater or equal to the distance from p to s + the distance from s to q' *)
   hence "sqed p q \<ge> sqed' (p!a) s + sqed' s (q!a)"
     by (smt A assms(1,2,3) dim_def nth_list_update_eq invar_axis_lt_d invar_r_gt_a sqed'_split)
-  (* Hence it is greater or equal to the distance from p to c since sqed' s (q!a) \<ge> 0 *)
   hence "sqed p q \<ge> sqed p c"
     by (smt assms(4) sqed'_com sqed'_ge_0)
 

@@ -48,7 +48,7 @@ text \<open>The k-d tree invariant:\<close>
 fun invar' :: "axis \<Rightarrow> dim \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar' _ k Leaf \<longleftrightarrow> k > 0"
 | "invar' a k (Node l p r) \<longleftrightarrow> invar' ((a+1) mod k) k l \<and> invar' ((a+1) mod k) k r \<and>
-    length p = k \<and> (\<forall>q \<in> set_kdt l. q!a \<le> p!a) \<and> (\<forall>q \<in> set_kdt r. q!a \<ge> p!a)"
+    length p = k \<and> (\<forall>q \<in> set_kdt l. q!a \<le> p!a) \<and> (\<forall>q \<in> set_kdt r. q!a > p!a)"
 
 text \<open>Insertion:\<close>
 
