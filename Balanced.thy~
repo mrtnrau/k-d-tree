@@ -203,20 +203,16 @@ lemma build'_set_single:
   apply (metis length_Suc_conv length_pos_if_in_set less_numeral_extra(3) list.sel(1) list.sel(3) list.set_cases)
   by (metis length_greater_0_conv less_Suc0 list.set_sel(1))
 
-lemma aux8:
-  "length ps > 1 \<Longrightarrow> sps = sort a ps \<Longrightarrow> l = take (length sps div 2) sps \<Longrightarrow> g = drop (length sps div 2) sps \<Longrightarrow> build' a d ps = Node a (last l) (build' ((a + 1) mod d) d l) (build' ((a + 1) mod d) d g)"
-  sorry
-
 lemma build'_set:
   "length ps = 2 ^ k \<Longrightarrow> set ps = set_kdt (build' a d ps)"
 proof (induction ps arbitrary: a k rule: length_induct)
   case (1 ps)
 
   let ?sps = "sort a ps"
-  let ?a' = "(a + 1) mod k"
+  let ?a' = "(a + 1) mod d"
 
-  let ?l = "take (length ps div 2) ?sps"
-  let ?g = "drop (length ps div 2) ?sps"
+  let ?l = "take (length ?sps div 2) ?sps"
+  let ?g = "drop (length ?sps div 2) ?sps"
 
   have L: "length ps > 1 \<longrightarrow> set ?l = set_kdt (build' ?a' d ?l)"
     using 1 sort_length aux4 aux5
@@ -226,9 +222,10 @@ proof (induction ps arbitrary: a k rule: length_induct)
     using 1 sort_length aux6 aux7
     by (metis length_drop one_less_numeral_iff power_0 power_strict_increasing_iff semiring_norm(76))
 
-  have X: "length ps > 1 \<longrightarrow> set_kdt (build' a d ps) = set_kdt (build' ?a' d ?l) \<union> set_kdt (build' ?a' d ?g)"
-    using aux8[of ps ?sps a ?l ?g]
-    by (smt "1.IH" "1.prems" aux5 aux7 div_less_dividend length_drop less_numeral_extra(3) mod_by_1 mod_if nat_zero_less_power_iff nonzero_mult_div_cancel_right one_less_numeral_iff one_mod_2_pow_eq pos2 power_0 power_minus_mult semiring_norm(76) set_kdt.simps(2) sort_length)
+  have "length ps > 1 \<longrightarrow> build' a d ps = Node a (last ?l) (build' ?a' d ?l) (build' ?a' d ?g)"
+     by (meson build'.elims not_less)
+  hence X: "length ps > 1 \<longrightarrow> set_kdt (build' a d ps) = set_kdt (build' ?a' d ?l) \<union> set_kdt (build' ?a' d ?g)"
+    by simp
   have Y: "length ps > 1 \<longrightarrow> set ps = set ?l \<union> set ?g"
     by (simp add: aux sort_set)
 

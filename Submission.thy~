@@ -76,6 +76,156 @@ datatype kdt =
 
 
 
+datatype ord = LT | EQ | GT
+
+fun cmp' :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> ord" where
+  "cmp' 0 p q = (
+    if p!0 < q!0 then LT
+    else if p!0 > q!0 then GT
+    else EQ
+  )"
+| "cmp' a p q = (
+    if p!a < q!a then LT
+    else if p!a > q!a then GT
+    else cmp' (a - 1) p q
+  )"
+
+fun cmp :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> ord" where
+  "cmp a p q = (
+    if p!a < q!a then LT
+    else if p!a > q!a then GT
+    else cmp' (dim p - 1) p q
+  )"
+
+lemma cmp'_EQ:
+  "(\<forall>i \<le> a. p!i = q!i) \<longleftrightarrow> cmp' a p q = EQ"
+  by (induction a) (auto elim: le_SucE)
+
+lemma cmp_EQ:
+  "dim p = dim q \<Longrightarrow> p = q \<longleftrightarrow> cmp a p q = EQ"
+  apply (induction a)
+  apply (auto)
+  by (metis Suc_pred cmp'_EQ length_greater_0_conv less_Suc_eq_le nth_equalityI)+
+
+lemma cmp'_rev:
+  "cmp' a p q = GT \<Longrightarrow> cmp' a q p = LT"
+  apply (induction a)
+  apply (auto split: if_splits)
+  done
+
+lemma cmp'_trans:
+  "dim x = d \<Longrightarrow> dim y = d \<Longrightarrow> dim z = d \<Longrightarrow> cmp' a x y = LT \<Longrightarrow> cmp' a y z = LT \<Longrightarrow> cmp' a x z = LT"
+  apply (induction a)
+  apply (auto split: if_splits)
+  done
+  
+fun sorted :: "axis \<Rightarrow> point list \<Rightarrow> bool" where
+  "sorted _ [] = True" 
+| "sorted a (p # ps) = (
+    (\<forall>q \<in> set ps. cmp a p q = LT \<or> cmp a p q = EQ) \<and> sorted a ps
+  )"
+
+fun insort :: "axis \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> point list" where
+  "insort _ p [] = [p]"
+| "insort a p (q # ps) = (
+    if cmp a p q = LT then p # q # ps
+    else if cmp a p q = GT then q # insort a p ps
+    else p # q # ps
+  )"
+
+definition sort :: "axis \<Rightarrow> point list \<Rightarrow> point list" where
+  "sort a ps = foldr (insort a) ps []"
+
+lemma insort_length:
+  "length (insort a p ps) = length ps + 1"
+  by (induction ps) auto
+
+lemma sort_length:
+  "length (sort a ps) = length ps"
+  unfolding sort_def
+  by (induction ps) (auto simp add: insort_length)
+
+lemma insort_set:
+  "set (insort a p ps) = {p} \<union> set ps"
+  by (induction ps) auto
+
+lemma sort_set:
+  "set (sort a ps) = set ps"
+  unfolding sort_def
+  by (induction ps) (auto simp add: insort_set)
+
+lemma insort_sorted:
+  "dim p = d \<Longrightarrow> \<forall>p \<in> set ps. dim p = d \<Longrightarrow> sorted a ps \<Longrightarrow> sorted a (insort a p ps)"
+  apply (induction ps arbitrary: a)
+  apply (auto simp add: insort_set split: if_splits)
+  using cmp'_rev apply blast
+  apply (smt Submission.dim_def Suc_pred cmp'_EQ cmp'_trans length_greater_0_conv lessI less_Suc_eq_le nth_equalityI)
+  using ord.exhaust apply blast
+  by (smt Suc_pred cmp'_EQ length_greater_0_conv less_Suc_eq_le nth_equalityI ord.exhaust)
+
+lemma sort_sorted:
+  "\<forall>p \<in> set ps. dim p = d \<Longrightarrow> sorted a (sort a ps)"
+  unfolding sort_def using insort_sorted sort_set sort_def
+  apply (induction ps)
+  apply (auto)
+  done
+
+definition split :: "axis \<Rightarrow> point list \<Rightarrow> point list * point * point list" where
+  "split a ps = (
+    let sps = sort a ps in
+    let n = length ps div 2 in
+    let lt = take n sps in
+    let gt = drop n sps in
+    (lt, hd gt, tl gt)
+  )"
+
+lemma split_length:
+  "length ps \<ge> 1 \<Longrightarrow> split a ps = (lt, m, gt) \<Longrightarrow> length ps = length lt + 1 + length gt"
+  unfolding split_def by (auto simp add: Let_def sort_length)
+
+lemma aux:
+  "set (take n xs) \<union> set (drop n xs) = set xs"
+  by (metis append_take_drop_id set_append)
+
+lemma aux1:
+  "length xs \<ge> 1 \<Longrightarrow> length (drop (length xs div 2) xs) \<ge> 1"
+  apply (induction xs)
+   apply (auto)
+  done
+
+lemma split_set:
+  "length ps \<ge> 1 \<Longrightarrow> split a ps = (lt, m, gt) \<Longrightarrow> set ps = set lt \<union> {m} \<union> set gt"
+  unfolding split_def using sort_set aux apply (auto simp add: Let_def)
+  apply (smt Cons_nth_drop_Suc UnE aux drop_Suc hd_drop_conv_nth not_less set_ConsD take_all tl_drop)
+  subgoal using aux aux1 sort_length
+    by (metis One_nat_def Un_iff list.set_sel(1) list.size(3) not_one_le_zero)
+  apply fastforce
+  by (metis Un_iff list.sel(2) list.set_sel(2))
+
+lemma split_length_lt_gt:
+  "length ps \<ge> 1 \<Longrightarrow> split a ps = (lt, m, gt) \<Longrightarrow> length lt \<ge> length gt"
+  unfolding split_def by (auto simp add: Let_def sort_length)
+
+lemma split_length_diff:
+  "length ps \<ge> 1 \<Longrightarrow> split a ps = (lt, m, gt) \<Longrightarrow> length lt - length gt \<le> 1"
+  unfolding split_def by (auto simp add: Let_def sort_length)
+
+lemma aux2:
+  "length ps \<ge> 1 \<Longrightarrow> split a ps = (lt, m, gt) \<Longrightarrow> sort a ps = lt @ [m] @ gt"
+  unfolding split_def apply (auto simp add: Let_def)
+  by (simp add: sort_length)
+
+lemma aux3:
+  "\<forall>p \<in> set (lt @ [m] @ gt). dim p = d \<Longrightarrow> distinct (lt @ [m] @ gt) \<Longrightarrow> sorted a (lt @ [m] @ gt) \<Longrightarrow> \<forall>p \<in> set lt. cmp a p m = LT"
+  apply (induction lt)
+  apply (auto)
+
+lemma split_sorted_lt:
+  "\<forall>p \<in> set ps. dim p = d \<Longrightarrow> length ps \<ge> 1 \<Longrightarrow> distinct ps \<Longrightarrow> split a ps = (lt, m, gt) \<Longrightarrow> \<forall>p \<in> set lt. cmp a p m = LT"
+  using sort_sorted aux3 aux2 sledgehammer
+
+
+
 text \<open>
   Abstraction function, size measure and invariant.
   Some lemmas for conveniently working with the invariant.
