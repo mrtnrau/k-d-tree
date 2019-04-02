@@ -35,6 +35,10 @@ fun height_kdt :: "kdt \<Rightarrow> nat" where
   "height_kdt (Leaf _) = 1"
 | "height_kdt (Node _ _ l r) = max (height_kdt l) (height_kdt r) + 1"
 
+lemma height_kdt_gt_0:
+  "height_kdt kdt > 0"
+  by (cases kdt) auto
+
 fun complete_kdt :: "kdt \<Rightarrow> bool" where
   "complete_kdt (Leaf _) = True"
 | "complete_kdt (Node _ _ l r) \<longleftrightarrow> complete_kdt l \<and> complete_kdt r \<and> height_kdt l = height_kdt r"
@@ -69,6 +73,9 @@ fun build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarro
       let a' = (a + 1) mod d in
       Node a (hd g ! a) (build' a' d l) (build' a' d g)
   )"
+
+definition build :: "point list \<Rightarrow> kdt" where
+  "build ps = build' 0 (dim (hd ps)) ps"
 
 
 
@@ -145,6 +152,7 @@ qed
 
 
 
+
 lemma AUX6:
   "distinct ps \<Longrightarrow> distinct (sort_wrt_a a ps)"
   by (induction ps) (auto simp add: distinct_insort)
@@ -183,7 +191,7 @@ qed
 
 lemma AUX11:
   assumes "sorted_wrt_a a ps" "n < length ps"
-  shows " \<forall>t \<in> set (take n ps). t!a \<le> (hd (drop n ps))!a"
+  shows "\<forall>t \<in> set (take n ps). t!a \<le> (hd (drop n ps))!a"
   using assms AUX10 by simp
 
 
@@ -248,22 +256,47 @@ proof (induction ps arbitrary: a k rule: length_induct)
 qed
 
 
-lemma XX:
-  "complete_kdt kdt \<Longrightarrow> size_kdt kdt = 2 ^ (height_kdt kdt - 1)"
-  apply (induction kdt)
-   apply (auto)
-  by (metis One_nat_def add_is_0 height_kdt.elims mult_2 one_neq_zero power_eq_if)
-  
 
-lemma X:
+
+lemma AUX12: "k > 0 \<Longrightarrow> 2 * 2 ^ (k - 1) = 2 ^ k"
+  by (cases k) auto
+
+lemma AUX13:
+  assumes "complete_kdt kdt" 
+  shows "size_kdt kdt = 2 ^ (height_kdt kdt - 1)"
+  using assms
+proof (induction kdt)
+  case (Leaf p)
+  thus ?case by simp
+next
+  case (Node a d l r)
+  have "size_kdt (Node a d l r) = 2 * 2 ^ (height_kdt l - 1)"
+    using Node by simp
+  also have "... = 2 ^ height_kdt l"
+    using AUX12 height_kdt_gt_0 by auto
+  also have "... = 2 ^ (height_kdt (Node a d l r) - 1)"
+    using Node by simp
+  finally show ?case .
+qed
+
+lemma AUX14:
+  "(2 :: nat) ^ x = 2 ^ y \<Longrightarrow> x = y"
+  by simp
+
+lemma AUX15:
   assumes "complete_kdt kdt1" "complete_kdt kdt2" "size_kdt kdt1 = size_kdt kdt2"
   shows "height_kdt kdt1 = height_kdt kdt2"
 proof -
   have "2 ^ (height_kdt kdt1 - 1) = 2 ^ (height_kdt kdt2 - 1)"
-    using XX assms by simp
-  thus ?thesis
-    by (smt One_nat_def add_is_0 height_kdt.elims lessI numeral_2_eq_2 one_neq_zero power_eq_if power_inject_exp)
+    using AUX13 assms by simp
+  hence "height_kdt kdt1 - 1 = height_kdt kdt2 - 1"
+    using AUX14 by blast
+  thus ?thesis using height_kdt_gt_0
+    by (metis One_nat_def Suc_pred)
 qed
+
+
+
 
 lemma build'_size:
   "length ps = 2 ^ k \<Longrightarrow> size_kdt (build' a d ps) = length ps"
@@ -274,40 +307,36 @@ proof (induction ps arbitrary: a k rule: length_induct)
   let ?a' = "(a + 1) mod d"
   let ?l = "take (length ?sps div 2) ?sps"
   let ?g = "drop (length ?sps div 2) ?sps"
-  let ?disc = "last ?l ! a"
-
-  have LL: "length ps > 1 \<longrightarrow> length ?l = 2 ^ (k - 1)"
-    using "1.prems" aux5 power_0 by fastforce
-  hence L: "length ps > 1 \<longrightarrow> size_kdt (build' ?a' d ?l) = length ?l"
-    using 1
-    by (smt aux4 aux5 less_numeral_extra(3) mod_by_1 mod_if one_mod_2_pow_eq one_neq_zero power_0)
-
-  have GG: "length ps > 1 \<longrightarrow> length ?g = 2 ^ (k - 1)"
-    using "1.prems" aux7 power_0 by fastforce
-  hence G: "length ps > 1 \<longrightarrow> size_kdt (build' ?a' d ?g) = length ?g"
-    using 1
-    by (smt aux4 aux5 less_numeral_extra(3) mod_by_1 mod_if one_mod_2_pow_eq one_neq_zero power_0)
-
-  have Q: "length ps > 1 \<longrightarrow> build' a d ps = Node a (last ?l ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
-    by (meson build'.elims not_less)
-
-  have Z: "length ps > 1 \<longrightarrow> size_kdt (build' a d ps) = length ps"
-    using Q
-    by (smt "1.prems" G GG L LL mult_2 nat_neq_iff power_eq_if size_kdt.simps(2))
+  let ?disc = "hd ?g ! a"
 
   show ?case
   proof (cases "length ps \<le> 1")
-case True
-  then show ?thesis using 1
-    by (simp add: antisym)
-next
-  case False
-  then show ?thesis using Z by force
-qed
+    case True
+    thus ?thesis using "1.prems"
+      by (simp add: antisym)
+  next
+    case False
+
+    hence "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
+      using "1.prems" AUX4 by fastforce+
+    moreover have "length ?l < length ps" "length ?g < length ps"
+      using "1.prems" False AUX5 by auto
+    ultimately have L: "length ?l = size_kdt (build' ?a' d ?l)" and G: "length ?g = size_kdt (build' ?a' d ?g)"
+      using "1.IH" by simp_all
+
+    have "length ?l + length ?g = length ps"
+      by simp
+    moreover have "build' a d ps = Node a (hd ?g ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
+      by (meson False build'.elims not_less)
+    ultimately show ?thesis using L G by force
+  qed
 qed
 
+
+
+
 lemma build'_complete:
-  "length ps = 2 ^ k \<Longrightarrow> complete (build' a d ps)"
+  "length ps = 2 ^ k \<Longrightarrow> complete_kdt (build' a d ps)"
 proof (induction ps arbitrary: a k rule: length_induct)
   case (1 ps)
 
@@ -315,25 +344,7 @@ proof (induction ps arbitrary: a k rule: length_induct)
   let ?a' = "(a + 1) mod d"
   let ?l = "take (length ?sps div 2) ?sps"
   let ?g = "drop (length ?sps div 2) ?sps"
-  let ?disc = "last ?l ! a"
-
-  have LL: "length ps > 1 \<longrightarrow> length ?l = 2 ^ (k - 1)"
-    using "1.prems" aux5 power_0 by fastforce
-  hence L: "length ps > 1 \<longrightarrow> complete (build' ?a' d ?l)"
-    using 1
-    by (metis diff_less one_less_numeral_iff power_0 power_strict_increasing_iff semiring_norm(76) zero_less_one)
-
-  have GG: "length ps > 1 \<longrightarrow> length ?g = 2 ^ (k - 1)"
-    using "1.prems" using aux7 by force
-  hence G: "length ps > 1 \<longrightarrow> complete (build' ?a' d ?g)"
-    using 1
-    by (metis diff_less one_less_numeral_iff power_0 power_strict_increasing_iff semiring_norm(76) zero_less_one)
-
-  have "size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?g)"
-    using build'_size using LL GG
-    by fastforce
-  hence H: "length ps > 1 \<longrightarrow> height_kdt (build' ?a' d ?l) = height_kdt (build' ?a' d ?g)"
-    using L G X by blast
+  let ?disc = "hd ?g ! a"
 
   show ?case
   proof (cases "length ps \<le> 1")
@@ -341,9 +352,41 @@ proof (induction ps arbitrary: a k rule: length_induct)
     then show ?thesis by simp
   next
     case False
-    then show ?thesis using 1 L G H apply (auto)
-      by (meson complete.simps(2))
+
+    hence LEN_LG: "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
+      using "1.prems" AUX4 by fastforce+
+    moreover have "length ?l < length ps" "length ?g < length ps"
+      using "1.prems" False AUX5 by auto
+    ultimately have L: "complete_kdt (build' ?a' d ?l)" and G: "complete_kdt (build' ?a' d ?g)"
+      using "1.IH" by simp_all
+
+    have "size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?g)"
+      using build'_size LEN_LG by auto
+    hence "height_kdt (build' ?a' d ?l) = height_kdt (build' ?a' d ?g)"
+      using L G AUX15 by blast
+    moreover have "build' a d ps = Node a (hd ?g ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
+      by (meson False build'.elims not_less)
+    ultimately show ?thesis using L G complete_kdt.simps(2) by presburger
   qed
 qed
+
+
+
+
+theorem build:
+  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
+  shows "set ps = set_kdt (build ps)"
+    and "size_kdt (build ps) = length ps"
+    and "complete_kdt (build ps)"
+    and "invar d (build ps)"
+  using assms build_def build'_set apply simp
+  using assms build_def build'_size apply simp
+  using assms build_def build'_complete apply simp
+  using assms by (metis build'_invar build_def length_0_conv list.set_sel(1) power_not_zero zero_neq_numeral)
+
+corollary build_height:
+  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
+  shows "length ps = 2 ^ (height_kdt (build ps) - 1)"
+  by (metis AUX13 assms build(2,3))
 
 end
