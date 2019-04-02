@@ -8,14 +8,17 @@ type_synonym axis = nat
 type_synonym dimension = nat
 type_synonym disc = real
 
+datatype kdt =
+  Leaf point
+| Node axis real kdt kdt
+
+
+
+
 definition dim :: "point \<Rightarrow> nat"  where
   "dim p = length p"
 
 declare dim_def[simp]
-
-datatype kdt =
-  Leaf point
-| Node axis real kdt kdt
 
 fun set_kdt :: "kdt \<Rightarrow> point set" where
   "set_kdt (Leaf p) = {p}"
@@ -29,9 +32,9 @@ fun height_kdt :: "kdt \<Rightarrow> nat" where
   "height_kdt (Leaf _) = 1"
 | "height_kdt (Node _ _ l r) = max (height_kdt l) (height_kdt r) + 1"
 
-fun complete :: "kdt \<Rightarrow> bool" where
-  "complete (Leaf _) = True"
-| "complete (Node _ _ l r) \<longleftrightarrow> complete l \<and> complete r \<and> height_kdt l = height_kdt r"
+fun complete_kdt :: "kdt \<Rightarrow> bool" where
+  "complete_kdt (Leaf _) = True"
+| "complete_kdt (Node _ _ l r) \<longleftrightarrow> complete_kdt l \<and> complete_kdt r \<and> height_kdt l = height_kdt r"
 
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar d (Leaf p) \<longleftrightarrow> dim p = d"
@@ -41,15 +44,15 @@ fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
 definition sorted_wrt_a :: "axis \<Rightarrow> point list \<Rightarrow> bool" where
   "sorted_wrt_a a ps = sorted_wrt (\<lambda>p q. p!a \<le> q!a) ps"
 
+declare sorted_wrt_a_def[simp]
+
 definition sort_wrt_a :: "axis \<Rightarrow> point list \<Rightarrow> point list" where
   "sort_wrt_a a ps = sort_key (\<lambda>p. p!a) ps"
 
-lemmas sorted_defs = sorted_wrt_a_def sort_wrt_a_def
-declare sorted_defs[simp]
+declare sort_wrt_a_def[simp]
 
-lemma aux:
-  "set (take n xs) \<union> set (drop n xs) = set xs"
-  by (metis append_take_drop_id set_append)
+
+
 
 fun build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarrow> kdt" where
   "build' a d ps = (
@@ -64,64 +67,74 @@ fun build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarro
       Node a (last l ! a) (build' a' d l) (build' a' d g)
   )"
 
-lemma aux4: 
-  "length xs = 2 ^ k \<Longrightarrow> length (take (length xs div 2) xs) < length xs"
-  by (metis Euclidean_Division.div_eq_0_iff div_greater_zero_iff div_less_dividend length_take min_def nat_less_le one_less_numeral_iff pos2 semiring_norm(76) zero_less_power)
 
-lemma aux5:
-  "length xs = 2 ^ k \<Longrightarrow> k > 0 \<Longrightarrow> length (take (length xs div 2) xs) = 2 ^ (k - 1)"
-  by (metis aux4 length_take min_def nat_neq_iff nat_zero_less_power_iff nonzero_mult_div_cancel_right power_minus_mult zero_power2)
 
-lemma aux6: 
-  "length xs = 2 ^ k \<Longrightarrow> k > 0 \<Longrightarrow> length (drop (length xs div 2) xs) < length xs"
-  by (metis Suc_leI diff_less div_2_gt_zero length_drop n_not_Suc_n nat_less_le nat_power_eq_Suc_0_iff numeral_2_eq_2 pos2 zero_less_power)
 
-lemma aux7:
-  "length xs = 2 ^ k \<Longrightarrow> length (drop (length xs div 2) xs) = 2 ^ (k - 1)"
-  by (smt Euclidean_Division.div_eq_0_iff One_nat_def Suc_eq_plus1 Suc_leI add_diff_cancel_right' diff_Suc_Suc diff_is_0_eq' gr0I length_drop mult_2 nonzero_mult_div_cancel_right one_less_numeral_iff power.simps(1) power_commutes power_minus_mult rel_simps(76) semiring_norm(76))
+lemma AUX0:
+  "set (take n xs) \<union> set (drop n xs) = set xs"
+  by (metis append_take_drop_id set_append)
 
-lemma build'_set_single:
-  "length ps = 1 \<Longrightarrow> set ps = set_kdt (build' a d ps)"
-  apply (auto)
-  apply (metis length_Suc_conv length_pos_if_in_set less_numeral_extra(3) list.sel(1) list.sel(3) list.set_cases)
-  by (metis length_greater_0_conv less_Suc0 list.set_sel(1))
+lemma AUX1:
+  "length xs \<le> 1 \<Longrightarrow> length xs = 2 ^ k \<Longrightarrow> length xs = 1"
+  by (cases xs) auto
+
+lemma AUX2:
+  "length xs = 1 \<Longrightarrow> { hd xs } = set xs"
+  by (cases xs) auto
+
+lemma AUX3:
+  assumes "k > 0"
+  shows "(2 :: nat) ^ k div 2 = 2 ^ (k - 1)"
+    and "(2 :: nat) ^ k - 2 ^ (k - 1) = 2 ^ (k - 1)"
+  using assms by (induction k) auto
+
+lemma AUX4:
+  assumes "length xs = 2 ^ k" "k > 0"
+  shows "length (take (length xs div 2) xs) = 2 ^ (k - 1)"
+    and "length (drop (length xs div 2) xs) = 2 ^ (k - 1)"
+  using assms using AUX3 by (induction xs) (auto simp add: min_def)
+
+lemma AUX5:
+  assumes "length xs = 2 ^ k" "length xs > 1"
+  shows "length (take (length xs div 2) xs) < length xs"
+    and "length (drop (length xs div 2) xs) < length xs"
+  using assms by (induction xs) auto
+
 
 lemma build'_set:
-  "length ps = 2 ^ k \<Longrightarrow> set ps = set_kdt (build' a d ps)"
+  assumes "length ps = 2 ^ k"
+  shows "set ps = set_kdt (build' a d ps)"
+  using assms
 proof (induction ps arbitrary: a k rule: length_induct)
   case (1 ps)
 
   let ?sps = "sort_wrt_a a ps"
   let ?a' = "(a + 1) mod d"
-
   let ?l = "take (length ?sps div 2) ?sps"
   let ?g = "drop (length ?sps div 2) ?sps"
-
-  have L: "length ps > 1 \<longrightarrow> set ?l = set_kdt (build' ?a' d ?l)"
-    using 1 aux4 aux5
-    by (smt length_sort less_numeral_extra(3) mod_by_1 mod_if one_mod_2_pow_eq power_0 sort_wrt_a_def zero_neq_one)
-
-  have "length ps > 1 \<longrightarrow> length ?g = 2 ^ (k - 1)"
-    using "1.prems" aux7 by fastforce
-  hence G: "length ps > 1 \<longrightarrow> set ?g = set_kdt (build' ?a' d ?g)"
-    using 1
-    by (smt aux6 length_sort less_numeral_extra(3) mod_by_1 mod_if one_mod_2_pow_eq one_neq_zero power_0 sort_wrt_a_def)
-
-  have "length ps > 1 \<longrightarrow> build' a d ps = Node a (last ?l ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
-     by (meson build'.elims not_less)
-  hence X: "length ps > 1 \<longrightarrow> set_kdt (build' a d ps) = set_kdt (build' ?a' d ?l) \<union> set_kdt (build' ?a' d ?g)"
-    by simp
-  have Y: "length ps > 1 \<longrightarrow> set ps = set ?l \<union> set ?g"
-    by (simp add: aux)
 
   show ?case
   proof (cases "length ps \<le> 1")
     case True
-    then show ?thesis using 1 build'_set_single
-      by (simp add: le_eq_less_or_eq)
+    thus ?thesis using "1.prems" AUX1 AUX2
+      by (metis set_kdt.simps(1) build'.elims)
   next
     case False
-    then show ?thesis using L G X Y by simp
+
+    hence K: "k > 0"
+      using "1.prems" gr0I by force
+    moreover have "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
+      using "1.prems" K AUX4 by fastforce+
+    moreover have "length ?l < length ps" "length ?g < length ps"
+      using "1.prems" False AUX5 by auto
+    ultimately have CHILDREN: "set ?l = set_kdt (build' ?a' d ?l)" "set ?g = set_kdt (build' ?a' d ?g)"
+      using 1 by blast+
+
+    have "build' a d ps = Node a (last ?l ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
+      using False by (meson build'.elims not_less)
+    moreover have "set ps = set ?l \<union> set ?g"
+      using False by (simp add: AUX0)
+    ultimately show ?thesis using CHILDREN by simp
   qed
 qed
 
