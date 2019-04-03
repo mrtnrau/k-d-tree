@@ -1,4 +1,4 @@
-theory Submission
+theory KDTree
 imports
   Complex_Main
 begin
@@ -13,7 +13,7 @@ text \<open>
   Consider a node n with associated splitting axis a with value s.
   All points in the left subtree must have a value at axis a that is less or
   equal than s and all points in the right subtree must have a value at axis a that is
-  greater that v.
+  greater or equal than v.
 
   e.g.: Consider a 2-d tree.
 
@@ -25,7 +25,7 @@ text \<open>
 
                  (2,3) (7, 2)  (4,7) (5,4)         (8,7) (9,9)
 
-  Leaf (4,7) is at its current position because 4 <= 7, 7 > 3 and 4 <= 4.
+  Leaf (4,7) is at its current position because 4 <= 7, 7 >= 3 and 4 <= 4.
 
   More information about k-d trees:
 
@@ -169,7 +169,35 @@ definition build :: "point list \<Rightarrow> kdt" where
 
 
 text \<open>
-  Auxiliary lemmas for the length induction and build'_set.
+  Auxiliary lemmas for the length induction on build'.
+\<close>
+
+lemma pow_k_div_2:
+  assumes "k > 0"
+  shows "(2 :: nat) ^ k div 2 = 2 ^ (k - 1)"
+    and "(2 :: nat) ^ k - 2 ^ (k - 1) = 2 ^ (k - 1)"
+  using assms by (induction k) auto
+
+lemma length_take_drop_div_2_eq:
+  assumes "length xs = 2 ^ k" "k > 0"
+  shows "length (take (length xs div 2) xs) = 2 ^ (k - 1)"
+    and "length (drop (length xs div 2) xs) = 2 ^ (k - 1)"
+  using assms using pow_k_div_2 by (induction xs) (auto simp add: min_def)
+
+lemma length_take_drop_div_2_lt:
+  assumes "length xs = 2 ^ k" "length xs > 1"
+  shows "length (take (length xs div 2) xs) < length xs"
+    and "length (drop (length xs div 2) xs) < length xs"
+  using assms by (induction xs) auto
+lemma distinct_sort_wrt_a:
+  "distinct ps \<Longrightarrow> distinct (sort_wrt_a a ps)"
+  by (induction ps) (auto simp add: distinct_insort)
+
+
+
+
+text \<open>
+  Auxiliary lemmas for build'_set and build'_invar.
 \<close>
 
 lemma set_take_drop:
@@ -180,30 +208,53 @@ lemma length_2_pow_k_eq_1:
   "length xs \<le> 1 \<Longrightarrow> length xs = 2 ^ k \<Longrightarrow> length xs = 1"
   by (cases xs) auto
 
-lemma AUX2:
+lemma length_1_hd_eq_set:
   "length xs = 1 \<Longrightarrow> { hd xs } = set xs"
   by (cases xs) auto
 
-lemma AUX3:
-  assumes "k > 0"
-  shows "(2 :: nat) ^ k div 2 = 2 ^ (k - 1)"
-    and "(2 :: nat) ^ k - 2 ^ (k - 1) = 2 ^ (k - 1)"
-  using assms by (induction k) auto
+lemma sorted_wrt_a_sort_wrt_a:
+  "sorted_wrt_a a (sort_wrt_a a ps)"
+  apply (induction ps)
+  apply (auto)
+  using sorted_insort_key sorted_map by fastforce
 
-lemma AUX4:
-  assumes "length xs = 2 ^ k" "k > 0"
-  shows "length (take (length xs div 2) xs) = 2 ^ (k - 1)"
-    and "length (drop (length xs div 2) xs) = 2 ^ (k - 1)"
-  using assms using AUX3 by (induction xs) (auto simp add: min_def)
+lemma sorted_wrt_a_take_drop:
+  assumes "sorted_wrt_a a ps"
+  shows "sorted_wrt_a a (take n ps)"
+    and "sorted_wrt_a a (drop n ps)"
+proof -
+  obtain xs ys where "ps = xs @ ys \<and> xs = take n ps \<and> ys = drop n ps"
+    by fastforce
+  thus "sorted_wrt_a a (take n ps)" "sorted_wrt_a a (drop n ps)" 
+    using assms sorted_wrt_append by fastforce+
+qed
 
-lemma AUX5:
-  assumes "length xs = 2 ^ k" "length xs > 1"
-  shows "length (take (length xs div 2) xs) < length xs"
-    and "length (drop (length xs div 2) xs) < length xs"
-  using assms by (induction xs) auto
+lemma sorted_wrt_a_hd_le:
+  "sorted_wrt_a a ps \<Longrightarrow> \<forall>p \<in> set ps. (hd ps)!a \<le> p!a"
+  by (induction ps) auto
+
+lemma sorted_wrt_a_take_le_drop:
+  assumes "sorted_wrt_a a ps"
+  shows "\<forall>t \<in> set (take n ps). \<forall>d \<in> set (drop n ps). t!a \<le> d!a"
+proof -
+  obtain ts ds where 1: "ps = ts @ ds \<and> ts = take n ps \<and> ds = drop n ps"
+    by fastforce
+  hence "\<forall>t \<in> set ts. \<forall>d \<in> set ds. t!a \<le> d!a"
+    using sorted_wrt_append assms by (metis sorted_wrt_a_def)
+  thus ?thesis using 1 by metis
+qed
+
+lemma sorted_wrt_a_take_le_hd_drop:
+  assumes "sorted_wrt_a a ps" "n < length ps"
+  shows "\<forall>t \<in> set (take n ps). t!a \<le> (hd (drop n ps))!a"
+  using assms sorted_wrt_a_take_le_drop by simp
 
 
 
+
+text \<open>
+  Main lemmas that state that build' builds a valid k-d tree.
+\<close>
 
 lemma build'_set:
   assumes "length ps = 2 ^ k"
@@ -220,7 +271,7 @@ proof (induction ps arbitrary: a k rule: length_induct)
   show ?case
   proof (cases "length ps \<le> 1")
     case True
-    thus ?thesis using "1.prems" length_2_pow_k_eq_1 AUX2
+    thus ?thesis using "1.prems" length_2_pow_k_eq_1 length_1_hd_eq_set
       by (metis set_kdt.simps(1) build'.elims)
   next
     case False
@@ -228,9 +279,9 @@ proof (induction ps arbitrary: a k rule: length_induct)
     hence K: "k > 0"
       using "1.prems" gr0I by force
     moreover have "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" K AUX4 by fastforce+
+      using "1.prems" K length_take_drop_div_2_eq by fastforce+
     moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False AUX5 by auto
+      using "1.prems" False length_take_drop_div_2_lt by auto
     ultimately have CHILDREN: "set ?l = set_kdt (build' ?a' d ?l)" "set ?g = set_kdt (build' ?a' d ?g)"
       using 1 by blast+
 
@@ -241,53 +292,6 @@ proof (induction ps arbitrary: a k rule: length_induct)
     ultimately show ?thesis using CHILDREN by simp
   qed
 qed
-
-
-
-
-lemma AUX6:
-  "distinct ps \<Longrightarrow> distinct (sort_wrt_a a ps)"
-  by (induction ps) (auto simp add: distinct_insort)
-
-lemma AUX7:
-  "sorted_wrt_a a (sort_wrt_a a ps)"
-  apply (induction ps)
-  apply (auto)
-  using sorted_insort_key sorted_map by fastforce
-
-lemma AUX8:
-  assumes "sorted_wrt_a a ps"
-  shows "sorted_wrt_a a (take n ps)"
-    and "sorted_wrt_a a (drop n ps)"
-proof -
-  obtain xs ys where "ps = xs @ ys \<and> xs = take n ps \<and> ys = drop n ps"
-    by fastforce
-  thus "sorted_wrt_a a (take n ps)" "sorted_wrt_a a (drop n ps)" 
-    using assms sorted_wrt_append by fastforce+
-qed
-
-lemma AUX9:
-  "sorted_wrt_a a ps \<Longrightarrow> \<forall>p \<in> set ps. (hd ps)!a \<le> p!a"
-  by (induction ps) auto
-
-lemma AUX10:
-  assumes "sorted_wrt_a a ps"
-  shows "\<forall>t \<in> set (take n ps). \<forall>d \<in> set (drop n ps). t!a \<le> d!a"
-proof -
-  obtain ts ds where 1: "ps = ts @ ds \<and> ts = take n ps \<and> ds = drop n ps"
-    by fastforce
-  hence "\<forall>t \<in> set ts. \<forall>d \<in> set ds. t!a \<le> d!a"
-    using sorted_wrt_append assms by (metis sorted_wrt_a_def)
-  thus ?thesis using 1 by metis
-qed
-
-lemma AUX11:
-  assumes "sorted_wrt_a a ps" "n < length ps"
-  shows "\<forall>t \<in> set (take n ps). t!a \<le> (hd (drop n ps))!a"
-  using assms AUX10 by simp
-
-
-
 
 lemma build'_invar:
   assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "a < d"
@@ -306,7 +310,7 @@ proof (induction ps arbitrary: a k rule: length_induct)
   proof (cases "length ps \<le> 1")
     case True
     hence "length (hd ps) = d"
-      using AUX2 "1.prems"(1,2) by (cases ps) auto
+      using length_1_hd_eq_set "1.prems"(1,2) by (cases ps) auto
     thus ?thesis using True length_2_pow_k_eq_1 by auto
   next
     case False
@@ -316,28 +320,28 @@ proof (induction ps arbitrary: a k rule: length_induct)
     moreover have "\<forall>p \<in> set ?l. dim p = d" "\<forall>p \<in> set ?g. dim p = d"
       using "1.prems"(2) in_set_takeD in_set_dropD by force+
     moreover have "distinct ?l" "distinct ?g"
-      using "1.prems"(3) AUX6 distinct_take distinct_drop by blast+
+      using "1.prems"(3) distinct_sort_wrt_a distinct_take distinct_drop by blast+
     moreover have K: "k > 0"
       using "1.prems" False gr0I by force
     moreover have LEN_GL: "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" K AUX4 by fastforce+
+      using "1.prems" K length_take_drop_div_2_eq by fastforce+
     moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False AUX5 by auto
+      using "1.prems" False length_take_drop_div_2_lt by auto
     ultimately have L: "invar d (build' ?a' d ?l)" and G: "invar d (build' ?a' d ?g)"
       using 1 by blast+
 
     have "\<forall>p \<in> set ?g. ?disc \<le> p!a"
-      using AUX7 AUX8 AUX9 by blast
+      using sorted_wrt_a_sort_wrt_a sorted_wrt_a_take_drop sorted_wrt_a_hd_le by blast
     hence X: "\<forall>p \<in> set_kdt (build' ?a' d ?g). ?disc \<le> p!a"
       using LEN_GL build'_set by blast
 
     have "\<forall>p \<in> set ?l. p!a \<le> ?disc"
-      using AUX7 AUX11[of a ?sps "(length ?sps div 2)"] by fastforce
+      using sorted_wrt_a_sort_wrt_a sorted_wrt_a_take_le_hd_drop[of a ?sps "(length ?sps div 2)"] by fastforce
     hence Y: "\<forall>p \<in> set_kdt (build' ?a' d ?l). p!a \<le> ?disc"
       using LEN_GL build'_set by blast
 
     have "set ?l \<inter> set ?g = {}"
-      by (metis "1.prems"(3) AUX6 append_take_drop_id distinct_append)
+      by (metis "1.prems"(3) distinct_sort_wrt_a append_take_drop_id distinct_append)
     hence Z: "set_kdt (build' ?a' d ?l) \<inter> set_kdt (build' ?a' d ?g) = {}"
       using LEN_GL build'_set by blast
 
@@ -350,10 +354,14 @@ qed
 
 
 
-lemma AUX12: "k > 0 \<Longrightarrow> 2 * 2 ^ (k - 1) = 2 ^ k"
+text \<open>
+  Auxiliary lemmas for building a complete k-d tree.
+\<close>
+
+lemma pow_2_k_mul_2: "k > 0 \<Longrightarrow> 2 * 2 ^ (k - 1) = 2 ^ k"
   by (cases k) auto
 
-lemma AUX13:
+lemma size_kdt_2_pow_height_kdt_m_1:
   assumes "complete_kdt kdt" 
   shows "size_kdt kdt = 2 ^ (height_kdt kdt - 1)"
   using assms
@@ -365,30 +373,34 @@ next
   have "size_kdt (Node a d l r) = 2 * 2 ^ (height_kdt l - 1)"
     using Node by simp
   also have "... = 2 ^ height_kdt l"
-    using AUX12 height_kdt_gt_0 by auto
+    using pow_2_k_mul_2 height_kdt_gt_0 by auto
   also have "... = 2 ^ (height_kdt (Node a d l r) - 1)"
     using Node by simp
   finally show ?case .
 qed
 
-lemma AUX14:
+lemma pow_2_x_eq_y:
   "(2 :: nat) ^ x = 2 ^ y \<Longrightarrow> x = y"
   by simp
 
-lemma AUX15:
+lemma complete_size_eq_height_eq:
   assumes "complete_kdt kdt1" "complete_kdt kdt2" "size_kdt kdt1 = size_kdt kdt2"
   shows "height_kdt kdt1 = height_kdt kdt2"
 proof -
   have "2 ^ (height_kdt kdt1 - 1) = 2 ^ (height_kdt kdt2 - 1)"
-    using AUX13 assms by simp
+    using size_kdt_2_pow_height_kdt_m_1 assms by simp
   hence "height_kdt kdt1 - 1 = height_kdt kdt2 - 1"
-    using AUX14 by blast
+    using pow_2_x_eq_y by blast
   thus ?thesis using height_kdt_gt_0
     by (metis One_nat_def Suc_pred)
 qed
 
 
 
+
+text \<open>
+  Main lemmas that state that build' builds a complete k-d tree.
+\<close>
 
 lemma build'_size:
   "length ps = 2 ^ k \<Longrightarrow> size_kdt (build' a d ps) = length ps"
@@ -410,9 +422,9 @@ proof (induction ps arbitrary: a k rule: length_induct)
     case False
 
     hence "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" AUX4 by fastforce+
+      using "1.prems" length_take_drop_div_2_eq by fastforce+
     moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False AUX5 by auto
+      using "1.prems" False length_take_drop_div_2_lt by auto
     ultimately have L: "length ?l = size_kdt (build' ?a' d ?l)" and G: "length ?g = size_kdt (build' ?a' d ?g)"
       using "1.IH" by simp_all
 
@@ -423,9 +435,6 @@ proof (induction ps arbitrary: a k rule: length_induct)
     ultimately show ?thesis using L G by force
   qed
 qed
-
-
-
 
 lemma build'_complete:
   "length ps = 2 ^ k \<Longrightarrow> complete_kdt (build' a d ps)"
@@ -446,16 +455,16 @@ proof (induction ps arbitrary: a k rule: length_induct)
     case False
 
     hence LEN_LG: "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" AUX4 by fastforce+
+      using "1.prems" length_take_drop_div_2_eq by fastforce+
     moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False AUX5 by auto
+      using "1.prems" False length_take_drop_div_2_lt by auto
     ultimately have L: "complete_kdt (build' ?a' d ?l)" and G: "complete_kdt (build' ?a' d ?g)"
       using "1.IH" by simp_all
 
     have "size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?g)"
       using build'_size LEN_LG by auto
     hence "height_kdt (build' ?a' d ?l) = height_kdt (build' ?a' d ?g)"
-      using L G AUX15 by blast
+      using L G complete_size_eq_height_eq by blast
     moreover have "build' a d ps = Node a (hd ?g ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
       by (meson False build'.elims not_less)
     ultimately show ?thesis using L G complete_kdt.simps(2) by presburger
@@ -464,6 +473,10 @@ qed
 
 
 
+
+text \<open>
+  Wrapping up the main theorems about build.
+\<close>
 
 theorem build:
   assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
@@ -479,98 +492,7 @@ theorem build:
 corollary build_height:
   assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
   shows "length ps = 2 ^ (height_kdt (build ps) - 1)"
-  by (metis AUX13 assms build(2,3))
-
-
-
-(*
-text \<open>
-  New insertion algorithm
-
-  This kdt representation makes insertion quite a bit more difficult but makes verifying
-  the nearest neighbor algorithm possible.
-\<close>
-
-fun find_axis' :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> axis option" where
-  "find_axis' 0 p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!0 \<noteq> p\<^sub>1!0 then Some 0 else None)"
-| "find_axis' a p\<^sub>0 p\<^sub>1 = (if p\<^sub>0!a \<noteq> p\<^sub>1!a then Some a else find_axis' (a - 1) p\<^sub>0 p\<^sub>1)"
-
-definition find_axis :: "point \<Rightarrow> point \<Rightarrow> axis option" where
-  "find_axis p\<^sub>0 p\<^sub>1 = find_axis' (dim p\<^sub>0 - 1) p\<^sub>0 p\<^sub>1"
-
-fun ins :: "point \<Rightarrow> kdt \<Rightarrow> kdt" where
-  "ins p (Leaf p') = (
-    case find_axis p p' of
-      None \<Rightarrow> Leaf p'
-    | Some a \<Rightarrow> (
-        if p!a < p'!a then
-          Node a (p!a) (Leaf p) (Leaf p')
-        else
-          Node a (p'!a) (Leaf p') (Leaf p)
-      )
-  )"
-| "ins p (Node a s l r) = (
-    if p!a \<le> s then
-      Node a s (ins p l) r
-    else
-      Node a s l (ins p r)
-  )"
-
-
-
-
-text \<open>Auxiliary lemmas.\<close>
-
-lemma find_axis'_Some_1:
-  "find_axis' a p\<^sub>0 p\<^sub>1 = Some a' \<Longrightarrow> p\<^sub>0!a' \<noteq> p\<^sub>1!a'"
-  by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
-
-lemma find_axis'_Some_2:
-  "a < d \<Longrightarrow> find_axis' a p\<^sub>0 p\<^sub>1 = Some a' \<Longrightarrow> a' < d"
-  by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto split: if_splits)
-
-lemma find_axis'_None:
-  "(\<forall>i \<le> a. p\<^sub>0!i = p\<^sub>1!i) \<longleftrightarrow> (find_axis' a p\<^sub>0 p\<^sub>1 = None)"
-  by (induction a p\<^sub>0 p\<^sub>1 rule: find_axis'.induct) (auto elim: le_SucE)
-
-lemma find_axis_Some_1:
-  "dim p\<^sub>0 = dim p\<^sub>1 \<Longrightarrow> find_axis p\<^sub>0 p\<^sub>1 = Some a' \<Longrightarrow> p\<^sub>0!a' \<noteq> p\<^sub>1!a'"
-  using find_axis_def find_axis'_Some_1 by metis
-
-lemma find_axis_Some_2:
-  "dim p\<^sub>0 = d \<Longrightarrow> dim p\<^sub>1 = d \<Longrightarrow> find_axis p\<^sub>0 p\<^sub>1 = Some a' \<Longrightarrow> a' < d"
-  using find_axis_def find_axis_Some_1 find_axis'_Some_2
-  by (metis dim_def diff_less length_greater_0_conv less_one)
-
-lemma find_axis_None:
-  "dim p\<^sub>0 = dim p\<^sub>1 \<Longrightarrow> (p\<^sub>0 = p\<^sub>1) \<longleftrightarrow> (find_axis p\<^sub>0 p\<^sub>1 = None)"
-  using find_axis_def find_axis'_None nth_equalityI
-  by (metis One_nat_def dim_def Suc_pred length_greater_0_conv less_Suc_eq_le)
-
-
-
-
-text \<open>Main lemmas about insertion.\<close>
-
-lemma ins_size_eq:
-  "invar d kdt \<Longrightarrow> dim p = d \<Longrightarrow> p \<in> set_kdt kdt \<Longrightarrow> size (ins p kdt) = size kdt"
-  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
-
-lemma ins_size_1:
-  "invar d kdt \<Longrightarrow> dim p = d \<Longrightarrow> p \<notin> set_kdt kdt \<Longrightarrow> size (ins p kdt) = size kdt + 1"
-  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
-
-lemma ins_set:
-  "invar d kdt \<Longrightarrow> dim p = d \<Longrightarrow> set_kdt (ins p kdt) = {p} \<union> set_kdt kdt"
-  by (induction kdt) (auto simp add: find_axis_None split: option.splits)
-
-lemma ins_invar:
-  "invar d kdt \<Longrightarrow> dim p = d \<Longrightarrow> invar d (ins p kdt)"
-  using find_axis_Some_1 find_axis_Some_2 ins_set
-  apply (induction kdt)
-  apply (auto split: option.splits)
-  by fastforce
-*)
+  by (metis size_kdt_2_pow_height_kdt_m_1 assms build(2,3))
 
 
 
