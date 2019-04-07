@@ -1,42 +1,26 @@
-theory Balanced
+theory Balanced2
 imports
   Complex_Main
+  "Median_Of_Medians_Selection"
 begin
+
+
+
 
 type_synonym point = "real list"
 type_synonym axis = nat
 type_synonym dimension = nat
-type_synonym disc = point
+type_synonym disc = real
+
+datatype kdt =
+  Leaf point
+| Node axis real kdt kdt
+
 
 definition dim :: "point \<Rightarrow> nat"  where
   "dim p = length p"
 
 declare dim_def[simp]
-
-datatype kdt =
-  Leaf point
-| Node axis disc kdt kdt
-
-datatype ord = LT | EQ | GT
-
-fun cmp' :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> ord" where
-  "cmp' 0 p q = (
-    if p!0 < q!0 then LT
-    else if p!0 > q!0 then GT
-    else EQ
-  )"
-| "cmp' a p q = (
-    if p!a < q!a then LT
-    else if p!a > q!a then GT
-    else cmp' (a - 1) p q
-  )"
-
-fun cmp :: "axis \<Rightarrow> point \<Rightarrow> point \<Rightarrow> ord" where
-  "cmp a p q = (
-    if p!a < q!a then LT
-    else if p!a > q!a then GT
-    else cmp' (dim p - 1) p q
-  )"
 
 fun set_kdt :: "kdt \<Rightarrow> point set" where
   "set_kdt (Leaf p) = {p}"
@@ -46,312 +30,542 @@ fun size_kdt :: "kdt \<Rightarrow> nat" where
   "size_kdt (Leaf _) = 1"
 | "size_kdt (Node _ _ l r) = size_kdt l + size_kdt r"
 
+fun height_kdt :: "kdt \<Rightarrow> nat" where
+  "height_kdt (Leaf _) = 1"
+| "height_kdt (Node _ _ l r) = max (height_kdt l) (height_kdt r) + 1"
+
+lemma height_kdt_gt_0:
+  "height_kdt kdt > 0"
+  by (cases kdt) auto
+
+fun complete_kdt :: "kdt \<Rightarrow> bool" where
+  "complete_kdt (Leaf _) = True"
+| "complete_kdt (Node _ _ l r) \<longleftrightarrow> complete_kdt l \<and> complete_kdt r \<and> height_kdt l = height_kdt r"
+
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar d (Leaf p) \<longleftrightarrow> dim p = d"
-| "invar d (Node a disc l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. cmp a p disc = LT \<or> cmp a p disc = EQ) \<and> (\<forall>p \<in> set_kdt r. cmp a p disc = GT) \<and>
-    invar d l \<and> invar d r \<and> a < d"
+| "invar d (Node a disc l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> disc) \<and> (\<forall>p \<in> set_kdt r. disc \<le> p!a) \<and>
+    invar d l \<and> invar d r \<and> a < d \<and> set_kdt l \<inter> set_kdt r = {}"
 
-lemma cmp'_EQ:
-  "(\<forall>i \<le> a. p!i = q!i) \<longleftrightarrow> cmp' a p q = EQ"
-  by (induction a) (auto elim: le_SucE)
+definition sorted_wrt_a :: "axis \<Rightarrow> point list \<Rightarrow> bool" where
+  "sorted_wrt_a a ps = sorted_wrt (\<lambda>p q. p!a \<le> q!a) ps"
 
-lemma cmp_EQ:
-  "dim p = dim q \<Longrightarrow> p = q \<longleftrightarrow> cmp a p q = EQ"
-  apply (induction a)
-  apply (auto)
-  by (metis Suc_pred cmp'_EQ length_greater_0_conv less_Suc_eq_le nth_equalityI)+
+declare sorted_wrt_a_def[simp]
 
-lemma cmp'_rev:
-  "cmp' a p q = GT \<Longrightarrow> cmp' a q p = LT"
-  apply (induction a)
-  apply (auto split: if_splits)
-  done
+definition sort_wrt_a :: "axis \<Rightarrow> point list \<Rightarrow> point list" where
+  "sort_wrt_a a ps = sort_key (\<lambda>p. p!a) ps"
 
-lemma cmp'_trans:
-  "dim x = d \<Longrightarrow> dim y = d \<Longrightarrow> dim z = d \<Longrightarrow> cmp' a x y = LT \<Longrightarrow> cmp' a y z = LT \<Longrightarrow> cmp' a x z = LT"
-  apply (induction a)
-  apply (auto split: if_splits)
-  done
-  
-fun sorted :: "axis \<Rightarrow> point list \<Rightarrow> bool" where
-  "sorted _ [] = True" 
-| "sorted a (p # ps) = (
-    (\<forall>q \<in> set ps. cmp a p q = LT \<or> cmp a p q = EQ) \<and> sorted a ps
+declare sort_wrt_a_def[simp]
+
+
+
+
+fun partition :: "axis \<Rightarrow> real \<Rightarrow> point list \<Rightarrow> point list * point list * point list" where
+  "partition _ _ [] = ([], [], [])"
+| "partition a m (p # ps) = (
+    let (lt, eq, gt) = partition a m ps in
+    if p!a < m then (p # lt, eq, gt)
+    else if p!a = m then (lt, p # eq, gt)
+    else (lt, eq, p # gt)
   )"
 
-fun insort :: "axis \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> point list" where
-  "insort _ p [] = [p]"
-| "insort a p (q # ps) = (
-    if cmp a p q = LT then p # q # ps
-    else if cmp a p q = GT then q # insort a p ps
-    else p # q # ps
+definition partition_by_median :: "axis \<Rightarrow> point list \<Rightarrow> point list * real * point list" where
+  "partition_by_median a ps = (
+     let n = length ps div 2 in
+     let ps' = map (\<lambda>p. p!a) ps in
+     let m = sort ps' ! n in
+     let (lt, eq, gt) = partition a m ps in
+     let rem = n - length lt in
+     (lt @ take rem eq, m, drop rem eq @ gt)
   )"
 
-definition sort :: "axis \<Rightarrow> point list \<Rightarrow> point list" where
-  "sort a ps = foldr (insort a) ps []"
+definition fast_partition_by_median :: "axis \<Rightarrow> point list \<Rightarrow> point list * real * point list" where
+  "fast_partition_by_median a ps = (
+     let n = length ps div 2 in
+     let ps' = map (\<lambda>p. p!a) ps in
+     let m = fast_select n ps' in
+     let (lt, eq, gt) = partition a m ps in
+     let rem = n - length lt in
+     (lt @ take rem eq, m, drop rem eq @ gt)
+  )"
 
-lemma insort_length:
-  "length (insort a p ps) = length ps + 1"
+
+
+
+lemma fast:
+  "length ps > 0 \<Longrightarrow> fast_partition_by_median a ps = partition_by_median a ps"
+  unfolding fast_partition_by_median_def partition_by_median_def
+  by (auto simp del: fast_select.simps simp add: fast_select_correct select_def)
+
+lemma partition_filter:
+  assumes "(lt, eq, gt) = partition a m ps"
+  shows "lt = filter (\<lambda>p. p!a < m) ps"
+    and "eq = filter (\<lambda>p. p!a = m) ps"
+    and "gt = filter (\<lambda>p. p!a > m) ps"
+  using assms by (induction ps arbitrary: lt eq gt) (auto split: prod.splits if_splits)
+
+lemma partition_length:
+  assumes "(lt, eq, gt) = partition a m ps"
+  shows "length ps = length lt + length eq + length gt"
+    and "length lt + length eq = length (filter (\<lambda>p. p!a \<le> m) ps)"
+  using assms by (induction ps arbitrary: lt eq gt) (auto split: prod.splits if_splits)
+
+lemma partition_set:
+  assumes "(lt, eq, gt) = partition a m ps"
+  shows "set ps = set lt \<union> set eq \<union> set gt"
+    and "set lt \<union> set eq = set (filter (\<lambda>p. p!a \<le> m) ps)"
+  using assms by (induction ps arbitrary: lt eq gt) (auto split: prod.splits if_splits)
+
+lemma partition_by_median_filter:
+  assumes "(l, m, r) = partition_by_median a ps" "even (length ps)" "length ps > 0"
+  shows partition_by_median_filter_l: "\<forall>p \<in> set l. p!a \<le> m"
+    and partition_by_median_filter_r:  "\<forall>p \<in> set r. m \<le> p!a"
+  using assms partition_filter
+  apply (auto simp add: partition_by_median_def Let_def split: prod.splits)
+  apply (smt in_set_takeD in_set_dropD mem_Collect_eq set_filter)+
+  done
+
+lemma partition_by_median_length_lr_0:
+  assumes "(l, m, r) = partition_by_median a ps"
+  shows "length ps = length l + length r"
+  using assms partition_length
+  apply (auto simp add: partition_by_median_def min_def Let_def split: prod.splits)
+  apply (smt add.assoc)+
+  done
+
+lemma A:
+  assumes "length lt + length eq > k" "length lt \<le> k"
+  shows "length (lt @ take (k - length lt) eq) = k"
+  using assms by simp
+
+lemma C:
+  "length (filter P xs) = length (filter P (sort xs))"
+  by (simp add: filter_sort)
+
+lemma A2:
+  assumes "k < length xs" "sorted xs"
+  shows "k < card {i. i < length xs \<and> xs ! i \<le> xs ! k}"
+proof -
+  have "\<forall>i. i \<le> k \<longrightarrow> xs ! i \<le> xs ! k"
+    using assms sorted_nth_mono by blast
+  hence "{i. i \<le> k} \<subseteq> {i. i < length xs \<and> xs ! i \<le> xs ! k}"
+    using assms(1) by auto
+  moreover have "finite {i. i < length xs \<and> xs ! i \<le> xs ! k}"
+    by simp
+  ultimately have "card {i. i \<le> k} \<le> card {i. i < length xs \<and> xs ! i \<le> xs ! k}"
+    using card_mono by blast
+  thus ?thesis by simp
+qed
+
+lemma A1:
+  assumes "k < length xs"
+  shows "k < length (filter (\<lambda>x. x \<le> sort xs ! k) xs)"
+proof -
+  have "k < card {i. i < length (sort xs) \<and> sort xs ! i \<le> sort xs ! k}"
+    using assms A2[of k "sort xs"] by simp
+  also have "... = length (filter (\<lambda>x. x \<le> sort xs ! k) (sort xs))"
+    using length_filter_conv_card[of "\<lambda>x. x \<le> sort xs ! k" "sort xs"] by simp
+  also have "... = length (filter (\<lambda>x. x \<le> sort xs ! k) xs)"
+    using C by metis
+  finally show ?thesis .
+qed
+
+lemma B2:
+  assumes "k < length xs" "sorted xs"
+  shows "card {i. i < length xs \<and> xs ! i < xs ! k} \<le> k"
+proof -
+  have "\<forall>i. i < length xs \<and> xs!i < xs!k \<longrightarrow> i < k"
+    using assms by (meson leD le_less_linear sorted_nth_mono)
+  hence "{i. i < length xs \<and> xs ! i < xs ! k} \<subseteq> {i. i < k}"
+    by blast
+  hence "card {i. i < length xs \<and> xs ! i < xs ! k} \<le> card {i. i < k}"
+    using card_mono by blast
+  also have "... \<le> k"
+    by simp
+  finally show ?thesis .
+qed
+
+lemma B1:
+  assumes "k < length xs"
+  shows "length (filter (\<lambda>x. x < sort xs ! k) xs) \<le> k"
+proof -
+  have "length (filter (\<lambda>x. x < sort xs ! k) xs) = length (filter (\<lambda>x. x < sort xs ! k) (sort xs))"
+    using C by blast
+  also have "... = card {i. i < length (sort xs) \<and> sort xs ! i < sort xs ! k}"
+    using length_filter_conv_card by blast
+  also have "... \<le> k"
+    using assms B2[of k "sort xs"] by simp
+  finally show ?thesis .
+qed
+
+lemma D1:
+  "length (filter (\<lambda>a. a < k) (map (\<lambda>p. p!a) ps)) = length (filter (\<lambda>p. p!a < k) ps)"
   by (induction ps) auto
 
-lemma sort_length:
-  "length (sort a ps) = length ps"
-  unfolding sort_def
-  by (induction ps) (auto simp add: insort_length)
-
-lemma insort_set:
-  "set (insort a p ps) = {p} \<union> set ps"
+lemma D2:
+  "length (filter (\<lambda>a. a \<le> k) (map (\<lambda>p. p!a) ps)) = length (filter (\<lambda>p. p!a \<le> k) ps)"
   by (induction ps) auto
 
-lemma sort_set:
-  "set (sort a ps) = set ps"
-  unfolding sort_def
-  by (induction ps) (auto simp add: insort_set)
+lemma E:
+  assumes "length l = length ps div 2" "length ps = length l + length r"
+  shows "length r \<ge> length l" "length r - length l \<le> 1"
+  using assms by simp_all
 
-lemma insort_sorted:
-  "dim p = d \<Longrightarrow> \<forall>p \<in> set ps. dim p = d \<Longrightarrow> sorted a ps \<Longrightarrow> sorted a (insort a p ps)"
-  apply (induction ps arbitrary: a)
-  apply (auto simp add: insort_set split: if_splits)
-  using cmp'_rev apply blast
-  apply (smt dim_def Suc_pred cmp'_EQ cmp'_trans length_greater_0_conv lessI less_Suc_eq_le nth_equalityI)
-  using ord.exhaust apply blast
-  by (smt Suc_pred cmp'_EQ length_greater_0_conv less_Suc_eq_le nth_equalityI ord.exhaust)
+lemma partition_by_median_length_lr_1:
+  assumes "(l, m, r) = partition_by_median a ps" "length ps > 0"
+  shows "length r - length l \<le> 1" "length r \<ge> length l"
+proof -
 
-lemma sort_sorted:
-  "\<forall>p \<in> set ps. dim p = d \<Longrightarrow> sorted a (sort a ps)"
-  unfolding sort_def using insort_sorted sort_set sort_def
-  apply (induction ps)
-  apply (auto)
+  let ?n = "length ps div 2"
+  let ?ps' = "map (\<lambda>p. p!a) ps"
+  let ?m = "sort ?ps' ! ?n"
+  let ?leg = "partition a ?m ps"
+  let ?lt = "fst ?leg"
+  let ?eq = "fst (snd ?leg)"
+  let ?gt = "snd (snd ?leg)"
+  let ?rem = "?n - length ?lt"
+  let ?l = "?lt @ take ?rem ?eq"
+  let ?r = "drop ?rem ?eq @ ?gt"
+
+  have "?n < length ?ps'"
+    using assms(2) by auto
+  hence "length (filter (\<lambda>a. a < ?m) ?ps') \<le> ?n" "length (filter (\<lambda>a. a \<le> ?m) ?ps') > ?n"
+    using B1[of ?n ?ps'] A1[of ?n ?ps'] by auto
+  hence LN: "length (filter (\<lambda>p. p!a < ?m) ps) \<le> ?n" "length (filter (\<lambda>p. p!a \<le> ?m) ps) > ?n"
+    using D1[of ?m a ps] D2[of ?m a ps] by simp_all
+
+  have "(?lt, ?eq, ?gt) = partition a ?m ps"
+    by simp
+  hence "?lt = filter (\<lambda>p. p!a < ?m) ps" "length ?lt + length ?eq = length (filter (\<lambda>p. p!a \<le> ?m) ps)"
+    using partition_filter partition_length by fast+
+  hence "length ?lt \<le> ?n" "length ?lt + length ?eq > ?n"
+    using LN by simp_all
+  hence X: "length ?l = ?n"
+    using A by blast
+
+  have Z: "(?l, ?m, ?r) = partition_by_median a ps"
+    by (auto simp add: Let_def partition_by_median_def split: prod.splits)
+  hence Y: "length ps = length ?l + length ?r"
+    using assms partition_by_median_length_lr_0 by blast
+
+  have "length ?r \<ge> length ?l" "length ?r - length ?l \<le> 1"
+    using X Y E by blast+
+  thus "length r - length l \<le> 1" "length r \<ge> length l" using Z by (metis Pair_inject assms(1))+
+qed
+
+lemma partition_by_median_length_lr_2:
+  assumes "(l, m, r) = partition_by_median a ps" "even (length ps)" "length ps > 0"
+  shows "length l = length r"
+  using partition_by_median_length_lr_0 partition_by_median_length_lr_1 assms
+  by (metis One_nat_def add.commute diff_is_0_eq even_diff_nat le_SucE le_antisym le_zero_eq odd_one)
+
+lemma partition_by_median_length_lr_3: 
+  assumes "(l, m, r) = partition_by_median a ps" "length ps > 1"
+  shows "length l < length ps" and "length r < length ps"
+  using assms partition_by_median_length_lr_1 partition_by_median_length_lr_2 partition_by_median_length_lr_0
+  by (metis add_diff_cancel_left' gr0I less_trans zero_less_diff le_eq_less_or_eq add_diff_cancel_right' leD minus_nat.diff_0)+
+
+lemmas partition_by_median_length = 
+  partition_by_median_length_lr_0 partition_by_median_length_lr_1
+  partition_by_median_length_lr_2 partition_by_median_length_lr_3
+
+lemma partition_by_median_set:
+  "(l, m, r) = partition_by_median a ps \<Longrightarrow> set ps = set l \<union> set r"
+  using partition_set
+  apply (auto simp add: Let_def partition_by_median_def split: prod.splits)
+  apply (smt Un_iff UnCI in_set_takeD in_set_dropD append_take_drop_id set_append)+
   done
-
-definition split :: "axis \<Rightarrow> point list \<Rightarrow> point list * point list" where
-  "split a ps = (
-    let sps = sort a ps in
-    let n = length ps div 2 in
-    (take n sps, drop n sps)
-  )"
-
-lemma split_length:
-  "split a ps = (l, g) \<Longrightarrow> length ps = length l + length g"
-  unfolding split_def by (auto simp add: Let_def sort_length)
-
-lemma aux:
-  "set (take n xs) \<union> set (drop n xs) = set xs"
-  by (metis append_take_drop_id set_append)
-
-lemma split_set:
-  "split a ps = (l, g) \<Longrightarrow> set ps = set l \<union> set g"
-  unfolding split_def using sort_set aux[of "length ps div 2" "sort a ps"] apply (auto simp add: Let_def)
-  done
-
-lemma split_length_g_l:
-  "split a ps = (l, g) \<Longrightarrow> length g \<ge> length l"
-  unfolding split_def using sort_length by (auto simp add: Let_def)
-
-lemma split_length_diff:
-  "split a ps = (l, g) \<Longrightarrow> length g - length l \<le> 1"
-  unfolding split_def using sort_length by (auto simp add: Let_def)
-
-lemma split_length_eq:
-  "k > 0 \<Longrightarrow> length ps = 2 ^ k \<Longrightarrow> split a ps = (l, g) \<Longrightarrow> length l = length g"
-  unfolding split_def using sort_length apply (auto simp add: Let_def min_def) sorry
-
-lemma aux2:
-  "split a ps = (l, g) \<Longrightarrow> sort a ps = l @ g"
-  unfolding split_def by (auto simp add: Let_def)
 
 function (sequential) build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarrow> kdt" where
-  "build' a d ps = (
-    if length ps \<le> 1 then
-      Leaf (hd ps) 
-    else
-      let sps = sort a ps in
-      let n = length sps div 2 in
-      let l = take n sps in
-      let g = drop n sps in
-      let a' = (a + 1) mod d in
-      Node a (last l) (build' a' d l) (build' a' d g)
+  "build' a d [] = undefined"
+| "build' a d [p] = Leaf p" 
+| "build' a d ps = (
+    let a' = (a + 1) mod d in
+    let (l, m, r) = fast_partition_by_median a ps in
+    Node a m (build' a' d l) (build' a' d r)
   )"
-        apply pat_completeness
-       apply auto
+  by pat_completeness auto
+termination build'
+  using partition_by_median_length_lr_3
+  apply (relation "measure (\<lambda>(a, d, ps). length ps)")
+  apply (auto simp add: fast)
+  apply fastforce+
   done
-termination
-  sorry
+
+lemma build'_simp_1:
+  "ps = [p] \<Longrightarrow> build' a d ps = Leaf p"
+  by simp
+
+lemma build'_simp_2:
+  "ps = p\<^sub>0 # p\<^sub>1 # ps' \<Longrightarrow> a' = (a + 1) mod d \<Longrightarrow> (l, m, r) = fast_partition_by_median a ps \<Longrightarrow> build' a d ps = Node a m (build' a' d l) (build' a' d r)"
+  using build'.simps(3) by (auto simp add: Let_def split: prod.splits)
+
+lemma length_ps_gt_1:
+  "length ps > 1 \<Longrightarrow> \<exists>p\<^sub>0 p\<^sub>1 ps'. ps = p\<^sub>0 # p\<^sub>1 # ps'"
+  by (induction ps) (auto simp add: neq_Nil_conv)
+
+lemma build'_simp_3:
+  "length ps > 1 \<Longrightarrow> a' = (a + 1) mod d \<Longrightarrow> (l, m, r) = fast_partition_by_median a ps \<Longrightarrow> build' a d ps = Node a m (build' a' d l) (build' a' d r)"
+  using build'_simp_2 length_ps_gt_1 by fast
+
+lemmas build'_simps[simp] = build'_simp_1 build'_simp_2 build'_simp_3
+
+declare build'.simps[simp del]
+
+definition build :: "point list \<Rightarrow> kdt" where
+  "build ps = build' 0 (dim (hd ps)) ps"
 
 
-lemma aux4: 
-  "length xs = 2 ^ k \<Longrightarrow> length (take (length xs div 2) xs) < length xs"
-  by (metis Euclidean_Division.div_eq_0_iff div_greater_zero_iff div_less_dividend length_take min_def nat_less_le one_less_numeral_iff pos2 semiring_norm(76) zero_less_power)
 
-lemma aux5:
-  "length xs = 2 ^ k \<Longrightarrow> k > 0 \<Longrightarrow> length (take (length xs div 2) xs) = 2 ^ (k - 1)"
-  by (metis aux4 length_take min_def nat_neq_iff nat_zero_less_power_iff nonzero_mult_div_cancel_right power_minus_mult zero_power2)
 
-lemma aux6: 
-  "length xs = 2 ^ k \<Longrightarrow> k > 0 \<Longrightarrow> length (drop (length xs div 2) xs) < length xs"
-  by (metis Suc_leI diff_less div_2_gt_zero length_drop n_not_Suc_n nat_less_le nat_power_eq_Suc_0_iff numeral_2_eq_2 pos2 zero_less_power)
+lemma pow2k_pow2k_1:
+  assumes "x + y = 2 ^ k" "(x :: nat) = y" "k > 0"
+  shows "x = 2 ^ (k - 1)"
+    and "y = 2 ^ (k - 1)"
+  using assms by (induction k) auto
 
-lemma aux7:
-  "length xs = 2 ^ k \<Longrightarrow> length (drop (length xs div 2) xs) = 2 ^ (k - 1)"
-  by (smt Euclidean_Division.div_eq_0_iff One_nat_def Suc_eq_plus1 Suc_leI add_diff_cancel_right' diff_Suc_Suc diff_is_0_eq' gr0I length_drop mult_2 nonzero_mult_div_cancel_right one_less_numeral_iff power.simps(1) power_commutes power_minus_mult rel_simps(76) semiring_norm(76))
+lemma pow2k_eq_2pow2k_1: "k > 0 \<Longrightarrow> 2 * 2 ^ (k - 1) = 2 ^ k"
+  by (cases k) auto
 
-lemma build'_set_single:
-  "length ps = 1 \<Longrightarrow> set ps = set_kdt (build' a d ps)"
-  apply (auto)
-  apply (metis length_Suc_conv length_pos_if_in_set less_numeral_extra(3) list.sel(1) list.sel(3) list.set_cases)
-  by (metis length_greater_0_conv less_Suc0 list.set_sel(1))
+lemma pow2xy:
+  "(2 :: nat) ^ x = 2 ^ y \<Longrightarrow> x = y"
+  by simp
 
 lemma build'_set:
-  "length ps = 2 ^ k \<Longrightarrow> set ps = set_kdt (build' a d ps)"
+  assumes "length ps = 2 ^ k"
+  shows "set ps = set_kdt (build' a d ps)"
+  using assms
 proof (induction ps arbitrary: a k rule: length_induct)
   case (1 ps)
-
-  let ?sps = "sort a ps"
-  let ?a' = "(a + 1) mod d"
-
-  let ?l = "take (length ?sps div 2) ?sps"
-  let ?g = "drop (length ?sps div 2) ?sps"
-
-  have L: "length ps > 1 \<longrightarrow> set ?l = set_kdt (build' ?a' d ?l)"
-    using 1 sort_length aux4 aux5
-    by (metis one_less_numeral_iff power_0 power_strict_increasing_iff semiring_norm(76))
-
-  have G: "length ps > 1 \<longrightarrow> set ?g = set_kdt (build' ?a' d ?g)"
-    using 1 sort_length aux6 aux7
-    by (metis length_drop one_less_numeral_iff power_0 power_strict_increasing_iff semiring_norm(76))
-
-  have "length ps > 1 \<longrightarrow> build' a d ps = Node a (last ?l) (build' ?a' d ?l) (build' ?a' d ?g)"
-     by (meson build'.elims not_less)
-  hence X: "length ps > 1 \<longrightarrow> set_kdt (build' a d ps) = set_kdt (build' ?a' d ?l) \<union> set_kdt (build' ?a' d ?g)"
-    by simp
-  have Y: "length ps > 1 \<longrightarrow> set ps = set ?l \<union> set ?g"
-    by (simp add: aux sort_set)
-
-  show ?case
+  then show ?case
   proof (cases "length ps \<le> 1")
     case True
-    then show ?thesis using 1 build'_set_single
-      by (simp add: le_eq_less_or_eq)
+    then obtain p where "ps = [p]"
+      using "1.prems" by (cases ps) auto
+    thus ?thesis by simp
   next
     case False
-    then show ?thesis using L G X Y by simp
+
+    let ?a' = "(a + 1) mod d"
+    let ?lmr = "fast_partition_by_median a ps"
+    let ?l = "fst ?lmr"
+    let ?m = "fst (snd ?lmr)"
+    let ?r = "snd (snd ?lmr)"
+
+    have K: "k > 0"
+      using "1.prems" False gr0I by force
+    hence E: "even (length ps)" "length ps > 0"
+      using False "1.prems"(1) by simp_all
+    hence "length ps = length ?l + length ?r" "length ?l = length ?r"
+      using partition_by_median_length fast by (metis prod.collapse)+
+    hence L: "length ?l = 2 ^ (k - 1)" and R: "length ?r = 2 ^ (k - 1)"
+      using K "1.prems"(1) pow2k_pow2k_1 by simp_all
+    moreover have "length ?l < length ps" "length ?r < length ps"
+      using "1.prems"(1) K L R by simp_all
+    ultimately have "set ?l = set_kdt (build' ?a' d ?l)" "set ?r = set_kdt (build' ?a' d ?r)" 
+      using "1.IH" by simp_all
+    moreover have "set ps = set ?l \<union> set ?r"
+      using partition_by_median_set fast E by (metis prod.collapse)
+    moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+      using False by simp
+    ultimately show ?thesis by auto
   qed
 qed
 
-lemma insort_distinct:
-  "p \<notin> set ps \<Longrightarrow> distinct ps \<Longrightarrow> distinct (insort a p ps)"
-  apply (induction ps)
-   apply (auto simp add: insort_set)
-  done
 
-lemma sort_distinct:
-  "distinct ps \<Longrightarrow> distinct (sort a ps)"
-  unfolding sort_def using sort_def insort_distinct sort_set
-  apply (induction ps)
-   apply auto
-  done
 
-lemma sorted_append:
-  "sorted a (xs @ ys) = (sorted a xs \<and> sorted a ys \<and> (\<forall>x \<in> set xs. \<forall>y \<in> set ys. cmp a x y = LT \<or> cmp a x y = EQ))"
-  apply (induction xs)
-   apply (auto)
-  done
-
-lemma x:
-  assumes "sorted a ps"
-  shows "\<forall>x \<in> set (take n ps). \<forall>y \<in> set (drop n ps). cmp a x y = LT \<or> cmp a x y = EQ"
-proof -
-  obtain xs ys where 1: "ps = xs @ ys \<and> xs = take n ps \<and> ys = drop n ps"
-    by fastforce
-  thus ?thesis using assms sorted_append
-    by metis
-qed
-
-lemma x1:
-  assumes "sorted a ps"
-  shows "\<forall>x \<in> set (butlast ps). cmp a x (last ps) = LT \<or> cmp a x (last ps) = EQ"
-  using assms x
-  by (metis append_butlast_last_id append_eq_conv_conj butlast.simps(1) length_pos_if_in_set less_numeral_extra(3) list.set_intros(1) list.size(3))
-
-lemma butlast_last:
-  "length xs \<ge> 1 \<Longrightarrow> set xs = set (butlast xs) \<union> {last xs}"
-  apply (induction xs)
-   apply (auto)
-  using Suc_le_eq apply blast
-  by (simp add: in_set_butlastD)
-
-lemma build'_invar_single:
-  "length ps = 1 \<Longrightarrow> \<forall>p \<in> set ps. dim p = d \<Longrightarrow> distinct ps \<Longrightarrow> a < d \<Longrightarrow> invar d (build' a d ps)"
-  apply (auto)
-  by (metis hd_in_set length_0_conv nat.distinct(1))
 
 lemma build'_invar:
-  "length ps = 2 ^ k \<Longrightarrow> \<forall>p \<in> set ps. dim p = d \<Longrightarrow> distinct ps \<Longrightarrow> a < d \<Longrightarrow> invar d (build' a d ps)"
+  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "a < d"
+  shows "invar d (build' a d ps)"
+  using assms
 proof (induction ps arbitrary: a k rule: length_induct)
   case (1 ps)
+  then show ?case
+  proof (cases "length ps \<le> 1")
+    case True
+    then obtain p where P: "ps = [p]"
+      using "1.prems" by (cases ps) auto
+    hence "dim p = d"
+      using "1.prems"(2) by simp
+    thus ?thesis using P by simp
+  next
+    case False
 
-  let ?sps = "sort a ps"
-  let ?a' = "(a + 1) mod d"
-  let ?l = "take (length ?sps div 2) ?sps"
-  let ?g = "drop (length ?sps div 2) ?sps"
-  let ?disc = "last ?l"
+    let ?a' = "(a + 1) mod d"
+    let ?lmr = "fast_partition_by_median a ps"
+    let ?l = "fst ?lmr"
+    let ?m = "fst (snd ?lmr)"
+    let ?r = "snd (snd ?lmr)"
 
-  have A': "?a' < d"
-    using "1.prems"(4) by auto
+    have A': "?a' < d"
+      using "1.prems"(4) by auto
 
-  have A: "\<forall>p \<in> set ?l. dim p = d"
-    using "1.prems"(2) in_set_takeD sort_set by fastforce
-  have B: "distinct ?l"
-    using sort_distinct distinct_take
-    using "1.prems"(3) by blast
+    have K: "k > 0"
+      using "1.prems" False gr0I by force
+    hence E: "even (length ps)" and P: "length ps > 0"
+      using False "1.prems"(1) by simp_all
+    hence PLR: "length ps = length ?l + length ?r" "length ?l = length ?r"
+      using partition_by_median_length fast E P by (metis prod.collapse)+
+    hence L: "length ?l = 2 ^ (k - 1)" and R: "length ?r = 2 ^ (k - 1)"
+      using K "1.prems"(1) pow2k_pow2k_1 by simp_all
+    moreover have "length ?l < length ps" "length ?r < length ps"
+      using "1.prems"(1) K L R by simp_all
+    moreover have SPLR: "set ps = set ?l \<union> set ?r"
+      using partition_by_median_set fast E P by (metis prod.collapse)
+    moreover have "distinct ?l" "distinct ?r" and LR: "set ?l \<inter> set ?r = {}"
+      using "1.prems"(3) SPLR PLR by (metis card_distinct distinct_append distinct_card length_append set_append)+
+    moreover have "\<forall>p \<in> set ?l .dim p = d" "\<forall>p \<in> set ?r .dim p = d"
+      using "1.prems"(2) SPLR by simp_all
+    ultimately have "invar d (build' ?a' d ?l)" "invar d (build' ?a' d ?r)"
+      using "1.IH" A' by simp_all
+    moreover have "\<forall>p \<in> set ?l. p ! a \<le> ?m" "\<forall>p \<in> set ?r. ?m \<le> p ! a"
+      using partition_by_median_filter E P fast by (metis prod.collapse)+
+    moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+      using False by simp
+    ultimately show ?thesis using "1.prems"(4) LR L R build'_set by auto
+  qed
+qed
 
-  have L: "length ps > 1 \<longrightarrow> invar d (build' ?a' d ?l)"
-    using 1 aux4 aux5 A B A'
-    by (smt one_less_numeral_iff power_0 power_strict_increasing_iff semiring_norm(76) sort_length)
 
-  have C: "\<forall>p \<in> set ?g. dim p = d"
-    using "1.prems"(2) sort_set by (metis in_set_dropD)
-  have D: "distinct ?g"
-    using sort_distinct distinct_drop
-    using "1.prems"(3) by blast
 
-  have G: "length ps > 1 \<longrightarrow> invar d (build' ?a' d ?g)"
-    using 1 aux6 aux7 C D A'
-    by (smt less_numeral_extra(3) mod_by_1 mod_if one_mod_2_pow_eq power_0 sort_length zero_neq_one)
 
-  have Q: "length ps > 1 \<longrightarrow> build' a d ps = Node a (last ?l) (build' ?a' d ?l) (build' ?a' d ?g)"
-     by (meson build'.elims not_less)
-      
-  have "length ps > 1 \<longrightarrow> (\<forall>p \<in> set ?g. cmp a p ?disc = GT)"
-    sorry
-  hence GT: "length ps > 1 \<longrightarrow> (\<forall>p \<in> set_kdt (build' ?a' d ?g). cmp a p ?disc = GT)"
-    sorry
 
-  have "sorted a ?l"
-    by (metis "1.prems"(2) Balanced.sorted_append append_take_drop_id nat_1_add_1 sort_def sort_length sort_sorted)
-  hence "length ps > 1 \<longrightarrow> (\<forall>p \<in> set (butlast ?l). cmp a p ?disc = LT \<or> cmp a p ?disc = EQ)"
-    using x1[of a ?l] by blast
-  hence "length ps > 1 \<longrightarrow> (\<forall>p \<in> set ?l. cmp a p ?disc = LT \<or> cmp a p ?disc = EQ)"
-    using butlast_last apply (auto split: if_splits)
-    apply (smt One_nat_def Suc_leI UnE butlast_last empty_set insert_iff length_pos_if_in_set less_numeral_extra(3) list.size(3))
-    by (smt One_nat_def Suc_leI UnE butlast_last cmp'_EQ empty_set insert_iff length_pos_if_in_set less_numeral_extra(3) list.size(3))
-  hence LT: "length ps > 1 \<longrightarrow> (\<forall>p \<in> set_kdt (build' ?a' d ?l). cmp a p ?disc = LT \<or> cmp a p ?disc = EQ)"
-    using Q by (smt "1.prems"(1) aux5 build'_set less_numeral_extra(3) mod_by_1 mod_if one_mod_2_pow_eq power_0 sort_length zero_neq_one)
+lemma size_height_kdt:
+  assumes "complete_kdt kdt" 
+  shows "size_kdt kdt = 2 ^ (height_kdt kdt - 1)"
+  using assms
+proof (induction kdt)
+  case (Leaf p)
+  thus ?case by simp
+next
+  case (Node a d l r)
+  have "size_kdt (Node a d l r) = 2 * 2 ^ (height_kdt l - 1)"
+    using Node by simp
+  also have "... = 2 ^ height_kdt l"
+    using pow2k_eq_2pow2k_1 height_kdt_gt_0 by auto
+  also have "... = 2 ^ (height_kdt (Node a d l r) - 1)"
+    using Node by simp
+  finally show ?case .
+qed
 
-  have QQ: "length ps > 1 \<longrightarrow> invar d (Node a (last ?l) (build' ?a' d ?l) (build' ?a' d ?g))"
-    using L G LT GT 1
-    using invar.simps(2) by presburger
+lemma complete_size_height_kdt:
+  assumes "complete_kdt kdt1" "complete_kdt kdt2" "size_kdt kdt1 = size_kdt kdt2"
+  shows "height_kdt kdt1 = height_kdt kdt2"
+proof -
+  have "2 ^ (height_kdt kdt1 - 1) = 2 ^ (height_kdt kdt2 - 1)"
+    using size_height_kdt assms by simp
+  hence "height_kdt kdt1 - 1 = height_kdt kdt2 - 1"
+    using pow2xy by blast
+  thus ?thesis using height_kdt_gt_0
+    by (metis One_nat_def Suc_pred)
+qed
 
+lemma build'_size:
+  assumes "length ps = 2 ^ k"
+  shows "size_kdt (build' a d ps) = length ps"
+  using assms
+proof (induction ps arbitrary: a k rule: length_induct)
+  case (1 ps)
+  then show ?case
+  proof (cases "length ps \<le> 1")
+    case True
+    then obtain p where "ps = [p]"
+      using "1.prems" by (cases ps) auto
+    thus ?thesis by simp
+  next
+    case False
+
+    let ?a' = "(a + 1) mod d"
+    let ?lmr = "fast_partition_by_median a ps"
+    let ?l = "fst ?lmr"
+    let ?m = "fst (snd ?lmr)"
+    let ?r = "snd (snd ?lmr)"
+
+    have K: "k > 0"
+      using "1.prems" False gr0I by force
+    hence E: "even (length ps)" "length ps > 0"
+      using False "1.prems"(1) by simp_all
+    hence PLR: "length ps = length ?l + length ?r" "length ?l = length ?r"
+      using partition_by_median_length E fast by (metis prod.collapse)+
+    hence L: "length ?l = 2 ^ (k - 1)" and R: "length ?r = 2 ^ (k - 1)"
+      using K "1.prems"(1) pow2k_pow2k_1 by simp_all
+    moreover have "length ?l < length ps" "length ?r < length ps"
+      using "1.prems"(1) K L R by simp_all
+    ultimately have "size_kdt (build' ?a' d ?l) = length ?l" "size_kdt (build' ?a' d ?r) = length ?r" 
+      using "1.IH" by simp_all
+    moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+      using False by simp
+    ultimately show ?thesis using PLR by auto
+  qed
+qed
+
+
+
+
+lemma build'_complete:
+  assumes "length ps = 2 ^ k"
+  shows "complete_kdt (build' a d ps)"
+  using assms
+proof (induction ps arbitrary: a k rule: length_induct)
+  case (1 ps)
   show ?case
   proof (cases "length ps \<le> 1")
     case True
-then show ?thesis using build'_invar_single "1.prems"
-  by (metis le_antisym one_le_numeral one_le_power)
-next
-  case False
-  then show ?thesis using Q QQ
-    by (metis not_less)
+    then obtain p where "ps = [p]"
+      using "1.prems" by (cases ps) auto
+    thus ?thesis by simp
+  next
+    case False
+
+    let ?a' = "(a + 1) mod d"
+    let ?lmr = "fast_partition_by_median a ps"
+    let ?l = "fst ?lmr"
+    let ?m = "fst (snd ?lmr)"
+    let ?r = "snd (snd ?lmr)"
+
+    have K: "k > 0"
+      using "1.prems" False gr0I by force
+    hence "even (length ps)" "length ps > 0"
+      using False "1.prems"(1) by simp_all
+    hence PLR: "length ps = length ?l + length ?r" "length ?l = length ?r"
+      using partition_by_median_length fast by (metis prod.collapse)+
+    hence L: "length ?l = 2 ^ (k - 1)" and R: "length ?r = 2 ^ (k - 1)"
+      using K "1.prems"(1) pow2k_pow2k_1 by simp_all
+    moreover have "length ?l < length ps" "length ?r < length ps"
+      using "1.prems"(1) K L R by simp_all
+    ultimately have CL: "complete_kdt (build' ?a' d ?l)" and CR: "complete_kdt (build' ?a' d ?r)"
+      using "1.IH" by simp_all
+
+    have "size_kdt (build' ?a' d ?l) = length ?l" "size_kdt (build' ?a' d ?r) = length ?r"
+      using build'_size L R by simp_all
+    hence "size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?r)"
+      using PLR(2) by simp
+    hence "height_kdt (build' ?a' d ?l) = height_kdt (build' ?a' d ?r)"
+      using CL CR complete_size_height_kdt by blast
+    moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+      using False by simp
+    ultimately show ?thesis using CL CR by auto
+  qed
 qed
-qed
+
+
+
+theorem build:
+  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
+  shows "set ps = set_kdt (build ps)"
+    and "size_kdt (build ps) = length ps"
+    and "complete_kdt (build ps)"
+    and "invar d (build ps)"
+  using assms build_def build'_set      apply simp
+  using assms build_def build'_size     apply simp
+  using assms build_def build'_complete apply simp
+  using assms build_def build'_invar
+  by (metis length_0_conv list.set_sel(1) power_not_zero zero_neq_numeral)
+
+corollary build_height:
+  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
+  shows "length ps = 2 ^ (height_kdt (build ps) - 1)"
+  by (metis assms build(2,3) size_height_kdt)
 
 end

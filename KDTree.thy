@@ -96,12 +96,10 @@ fun complete_kdt :: "kdt \<Rightarrow> bool" where
 definition sorted_wrt_a :: "axis \<Rightarrow> point list \<Rightarrow> bool" where
   "sorted_wrt_a a ps = sorted_wrt (\<lambda>p q. p!a \<le> q!a) ps"
 
-declare sorted_wrt_a_def[simp]
-
 definition sort_wrt_a :: "axis \<Rightarrow> point list \<Rightarrow> point list" where
   "sort_wrt_a a ps = sort_key (\<lambda>p. p!a) ps"
 
-declare sort_wrt_a_def[simp]
+declare sort_wrt_a_def[simp] sorted_wrt_a_def[simp]
 
 
 
@@ -146,353 +144,165 @@ lemma invar_set:
 
 
 text \<open>
-  Building complete k-d trees.
+  Verifying d-dimensional queries on the k-d tree.
+
+  Given two d-dimensional points p0 and p1 which bound the search space, the query should return
+  only the points which satisfy the following criteria:
+
+  For every point p in the resulting set:
+    For every axis a \<in> [0, d-1]:
+      min (p0!a) (p1!a) <= p!a and p!a <= max (p0!a) (p1!a)
+
+  For example: In a 2-d tree a query corresponds to selecting all the points in
+  the rectangle which has p0 and p1 as its defining edges.
 \<close>
 
-fun build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarrow> kdt" where
-  "build' a d ps = (
-    if length ps \<le> 1 then
-      Leaf (hd ps) 
+text \<open>
+  Simplifying the problem:
+
+  Assume that the two given points p0 and p1 which define the bounding box are the left lower
+  and the right upper point.
+
+  For every point p in the resulting set:
+    For every axis a \<in> [0, d-1]:
+      p0!a <= p1!a
+\<close>
+
+text\<open>The query function and auxiliary definitions:\<close>
+
+definition is_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
+  "is_bounding_box d p\<^sub>0 p\<^sub>1 \<longleftrightarrow> dim p\<^sub>0 = d \<and> dim p\<^sub>1 = d \<and> (\<forall>i < d. p\<^sub>0!i \<le> p\<^sub>1!i)"
+
+definition point_in_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
+  "point_in_bounding_box d p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < d. p\<^sub>0!i \<le> p!i \<and> p!i \<le> p\<^sub>1!i)"
+
+fun query_area' :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
+  "query_area' d p\<^sub>0 p\<^sub>1 (Leaf p) = (
+    if point_in_bounding_box d p p\<^sub>0 p\<^sub>1 then {p} else {}
+  )"
+| "query_area' d p\<^sub>0 p\<^sub>1 (Node a s l r) = (
+    if s < p\<^sub>0!a then
+      query_area' d p\<^sub>0 p\<^sub>1 r
+    else if p\<^sub>1!a < s then
+      query_area' d p\<^sub>0 p\<^sub>1 l
     else
-      let sps = sort_wrt_a a ps in
-      let n = length sps div 2 in
-      let l = take n sps in
-      let g = drop n sps in
-      let a' = (a + 1) mod d in
-      Node a (hd g ! a) (build' a' d l) (build' a' d g)
+      query_area' d p\<^sub>0 p\<^sub>1 l \<union> query_area' d p\<^sub>0 p\<^sub>1 r
   )"
 
-definition build :: "point list \<Rightarrow> kdt" where
-  "build ps = build' 0 (dim (hd ps)) ps"
 
 
 
+text \<open>Auxiliary lemmas:\<close>
 
-text \<open>
-  Auxiliary lemmas for the length induction on build'.
-\<close>
-
-lemma pow_k_div_2:
-  assumes "k > 0"
-  shows "(2 :: nat) ^ k div 2 = 2 ^ (k - 1)"
-    and "(2 :: nat) ^ k - 2 ^ (k - 1) = 2 ^ (k - 1)"
-  using assms by (induction k) auto
-
-lemma length_take_drop_div_2_eq:
-  assumes "length xs = 2 ^ k" "k > 0"
-  shows "length (take (length xs div 2) xs) = 2 ^ (k - 1)"
-    and "length (drop (length xs div 2) xs) = 2 ^ (k - 1)"
-  using assms using pow_k_div_2 by (induction xs) (auto simp add: min_def)
-
-lemma length_take_drop_div_2_lt:
-  assumes "length xs = 2 ^ k" "length xs > 1"
-  shows "length (take (length xs div 2) xs) < length xs"
-    and "length (drop (length xs div 2) xs) < length xs"
-  using assms by (induction xs) auto
-lemma distinct_sort_wrt_a:
-  "distinct ps \<Longrightarrow> distinct (sort_wrt_a a ps)"
-  by (induction ps) (auto simp add: distinct_insort)
-
-
-
-
-text \<open>
-  Auxiliary lemmas for build'_set and build'_invar.
-\<close>
-
-lemma set_take_drop:
-  "set (take n xs) \<union> set (drop n xs) = set xs"
-  by (metis append_take_drop_id set_append)
-
-lemma length_2_pow_k_eq_1:
-  "length xs \<le> 1 \<Longrightarrow> length xs = 2 ^ k \<Longrightarrow> length xs = 1"
-  by (cases xs) auto
-
-lemma length_1_hd_eq_set:
-  "length xs = 1 \<Longrightarrow> { hd xs } = set xs"
-  by (cases xs) auto
-
-lemma sorted_wrt_a_sort_wrt_a:
-  "sorted_wrt_a a (sort_wrt_a a ps)"
-  apply (induction ps)
-  apply (auto)
-  using sorted_insort_key sorted_map by fastforce
-
-lemma sorted_wrt_a_take_drop:
-  assumes "sorted_wrt_a a ps"
-  shows "sorted_wrt_a a (take n ps)"
-    and "sorted_wrt_a a (drop n ps)"
-proof -
-  obtain xs ys where "ps = xs @ ys \<and> xs = take n ps \<and> ys = drop n ps"
-    by fastforce
-  thus "sorted_wrt_a a (take n ps)" "sorted_wrt_a a (drop n ps)" 
-    using assms sorted_wrt_append by fastforce+
-qed
-
-lemma sorted_wrt_a_hd_le:
-  "sorted_wrt_a a ps \<Longrightarrow> \<forall>p \<in> set ps. (hd ps)!a \<le> p!a"
-  by (induction ps) auto
-
-lemma sorted_wrt_a_take_le_drop:
-  assumes "sorted_wrt_a a ps"
-  shows "\<forall>t \<in> set (take n ps). \<forall>d \<in> set (drop n ps). t!a \<le> d!a"
-proof -
-  obtain ts ds where 1: "ps = ts @ ds \<and> ts = take n ps \<and> ds = drop n ps"
-    by fastforce
-  hence "\<forall>t \<in> set ts. \<forall>d \<in> set ds. t!a \<le> d!a"
-    using sorted_wrt_append assms by (metis sorted_wrt_a_def)
-  thus ?thesis using 1 by metis
-qed
-
-lemma sorted_wrt_a_take_le_hd_drop:
-  assumes "sorted_wrt_a a ps" "n < length ps"
-  shows "\<forall>t \<in> set (take n ps). t!a \<le> (hd (drop n ps))!a"
-  using assms sorted_wrt_a_take_le_drop by simp
-
-
-
-
-text \<open>
-  Main lemmas that state that build' builds a valid k-d tree.
-\<close>
-
-lemma build'_set:
-  assumes "length ps = 2 ^ k"
-  shows "set ps = set_kdt (build' a d ps)"
+lemma l_pibb_empty:
+  assumes "invar d (Node a s l r)" "s < p\<^sub>0!a"
+  shows "{ p \<in> set_kdt l. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 } = {}"
   using assms
-proof (induction ps arbitrary: a k rule: length_induct)
-  case (1 ps)
-
-  let ?sps = "sort_wrt_a a ps"
-  let ?a' = "(a + 1) mod d"
-  let ?l = "take (length ?sps div 2) ?sps"
-  let ?g = "drop (length ?sps div 2) ?sps"
-
-  show ?case
-  proof (cases "length ps \<le> 1")
-    case True
-    thus ?thesis using "1.prems" length_2_pow_k_eq_1 length_1_hd_eq_set
-      by (metis set_kdt.simps(1) build'.elims)
-  next
-    case False
-
-    hence K: "k > 0"
-      using "1.prems" gr0I by force
-    moreover have "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" K length_take_drop_div_2_eq by fastforce+
-    moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False length_take_drop_div_2_lt by auto
-    ultimately have CHILDREN: "set ?l = set_kdt (build' ?a' d ?l)" "set ?g = set_kdt (build' ?a' d ?g)"
-      using 1 by blast+
-
-    have "build' a d ps = Node a (hd ?g ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
-      using False by (meson build'.elims not_less)
-    moreover have "set ps = set ?l \<union> set ?g"
-      using False by (simp add: set_take_drop)
-    ultimately show ?thesis using CHILDREN by simp
-  qed
-qed
-
-lemma build'_invar:
-  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "a < d"
-  shows "invar d (build' a d ps)"
-  using assms
-proof (induction ps arbitrary: a k rule: length_induct)
-  case (1 ps)
-
-  let ?sps = "sort_wrt_a a ps"
-  let ?a' = "(a + 1) mod d"
-  let ?l = "take (length ?sps div 2) ?sps"
-  let ?g = "drop (length ?sps div 2) ?sps"
-  let ?disc = "hd ?g ! a"
-
-  show ?case
-  proof (cases "length ps \<le> 1")
-    case True
-    hence "length (hd ps) = d"
-      using length_1_hd_eq_set "1.prems"(1,2) by (cases ps) auto
-    thus ?thesis using True length_2_pow_k_eq_1 by auto
-  next
-    case False
-
-    have A': "?a' < d"
-      using "1.prems"(4) by auto
-    moreover have "\<forall>p \<in> set ?l. dim p = d" "\<forall>p \<in> set ?g. dim p = d"
-      using "1.prems"(2) in_set_takeD in_set_dropD by force+
-    moreover have "distinct ?l" "distinct ?g"
-      using "1.prems"(3) distinct_sort_wrt_a distinct_take distinct_drop by blast+
-    moreover have K: "k > 0"
-      using "1.prems" False gr0I by force
-    moreover have LEN_GL: "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" K length_take_drop_div_2_eq by fastforce+
-    moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False length_take_drop_div_2_lt by auto
-    ultimately have L: "invar d (build' ?a' d ?l)" and G: "invar d (build' ?a' d ?g)"
-      using 1 by blast+
-
-    have "\<forall>p \<in> set ?g. ?disc \<le> p!a"
-      using sorted_wrt_a_sort_wrt_a sorted_wrt_a_take_drop sorted_wrt_a_hd_le by blast
-    hence X: "\<forall>p \<in> set_kdt (build' ?a' d ?g). ?disc \<le> p!a"
-      using LEN_GL build'_set by blast
-
-    have "\<forall>p \<in> set ?l. p!a \<le> ?disc"
-      using sorted_wrt_a_sort_wrt_a sorted_wrt_a_take_le_hd_drop[of a ?sps "(length ?sps div 2)"] by fastforce
-    hence Y: "\<forall>p \<in> set_kdt (build' ?a' d ?l). p!a \<le> ?disc"
-      using LEN_GL build'_set by blast
-
-    have "set ?l \<inter> set ?g = {}"
-      by (metis "1.prems"(3) distinct_sort_wrt_a append_take_drop_id distinct_append)
-    hence Z: "set_kdt (build' ?a' d ?l) \<inter> set_kdt (build' ?a' d ?g) = {}"
-      using LEN_GL build'_set by blast
-
-    have "build' a d ps = Node a (hd ?g ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
-      using False by (meson build'.elims not_less)
-    thus ?thesis using "1.prems"(4) L G  X Y Z by simp
-  qed
-qed
-
-
-
-
-text \<open>
-  Auxiliary lemmas for building a complete k-d tree.
-\<close>
-
-lemma pow_2_k_mul_2: "k > 0 \<Longrightarrow> 2 * 2 ^ (k - 1) = 2 ^ k"
-  by (cases k) auto
-
-lemma size_kdt_2_pow_height_kdt_m_1:
-  assumes "complete_kdt kdt" 
-  shows "size_kdt kdt = 2 ^ (height_kdt kdt - 1)"
-  using assms
-proof (induction kdt)
-  case (Leaf p)
-  thus ?case by simp
-next
-  case (Node a d l r)
-  have "size_kdt (Node a d l r) = 2 * 2 ^ (height_kdt l - 1)"
-    using Node by simp
-  also have "... = 2 ^ height_kdt l"
-    using pow_2_k_mul_2 height_kdt_gt_0 by auto
-  also have "... = 2 ^ (height_kdt (Node a d l r) - 1)"
-    using Node by simp
-  finally show ?case .
-qed
-
-lemma pow_2_x_eq_y:
-  "(2 :: nat) ^ x = 2 ^ y \<Longrightarrow> x = y"
-  by simp
-
-lemma complete_size_eq_height_eq:
-  assumes "complete_kdt kdt1" "complete_kdt kdt2" "size_kdt kdt1 = size_kdt kdt2"
-  shows "height_kdt kdt1 = height_kdt kdt2"
 proof -
-  have "2 ^ (height_kdt kdt1 - 1) = 2 ^ (height_kdt kdt2 - 1)"
-    using size_kdt_2_pow_height_kdt_m_1 assms by simp
-  hence "height_kdt kdt1 - 1 = height_kdt kdt2 - 1"
-    using pow_2_x_eq_y by blast
-  thus ?thesis using height_kdt_gt_0
-    by (metis One_nat_def Suc_pred)
+  have "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
+    using invar_l_le_a assms(1,2) by auto
+  hence "\<forall>p \<in> set_kdt l. (\<exists>i < d. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_d by blast
+  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box d p p\<^sub>0 p\<^sub>1"
+    using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
 qed
+
+lemma r_pibb_empty:
+  assumes "invar d (Node a s l r)" "p\<^sub>1!a < s"
+  shows "{ p \<in> set_kdt r. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 } = {}"
+  using assms
+proof -
+  have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
+    using invar_r_ge_a assms(1,2) by auto
+  hence "\<forall>p \<in> set_kdt r. (\<exists>i < d. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
+    using assms(1) invar_axis_lt_d by blast
+  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box d p p\<^sub>0 p\<^sub>1"
+   using point_in_bounding_box_def by fastforce
+  thus ?thesis by blast
+qed
+
+
+
+
+text \<open>The simplified main theorem:\<close>
+
+theorem query_area':
+  assumes "invar d kdt"
+  shows "query_area' d p\<^sub>0 p\<^sub>1 kdt = { p \<in> set_kdt kdt. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 }"
+  using assms l_pibb_empty r_pibb_empty
+  by (induction kdt) auto
 
 
 
 
 text \<open>
-  Main lemmas that state that build' builds a complete k-d tree.
+  Un-simplifying the problem:
+
+  Given two arbitrary points p0 and p1 which only satisfy the dimensionality property,
+  does the query function work?
+
+  Hide the is_bounding_box abstraction.
 \<close>
 
-lemma build'_size:
-  "length ps = 2 ^ k \<Longrightarrow> size_kdt (build' a d ps) = length ps"
-proof (induction ps arbitrary: a k rule: length_induct)
-  case (1 ps)
+text \<open>Auxiliary functions and the final query function:\<close>
 
-  let ?sps = "sort_wrt_a a ps"
-  let ?a' = "(a + 1) mod d"
-  let ?l = "take (length ?sps div 2) ?sps"
-  let ?g = "drop (length ?sps div 2) ?sps"
-  let ?disc = "hd ?g ! a"
+fun min_max :: "real * real \<Rightarrow> real * real" where
+  "min_max (a, b) = (min a b, max a b)"
 
-  show ?case
-  proof (cases "length ps \<le> 1")
-    case True
-    thus ?thesis using "1.prems"
-      by (simp add: antisym)
-  next
-    case False
+definition to_bounding_box :: "point \<Rightarrow> point \<Rightarrow> point * point" where
+  "to_bounding_box p\<^sub>0 p\<^sub>1 = (let ivs = map min_max (zip p\<^sub>0 p\<^sub>1) in (map fst ivs, map snd ivs))"
 
-    hence "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" length_take_drop_div_2_eq by fastforce+
-    moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False length_take_drop_div_2_lt by auto
-    ultimately have L: "length ?l = size_kdt (build' ?a' d ?l)" and G: "length ?g = size_kdt (build' ?a' d ?g)"
-      using "1.IH" by simp_all
+definition query_area :: "point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
+  "query_area q\<^sub>0 q\<^sub>1 kdt = (let (p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1 in query_area' (dim q\<^sub>0) p\<^sub>0 p\<^sub>1 kdt)"
 
-    have "length ?l + length ?g = length ps"
-      by simp
-    moreover have "build' a d ps = Node a (hd ?g ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
-      by (meson False build'.elims not_less)
-    ultimately show ?thesis using L G by force
-  qed
+
+
+
+text \<open>Auxiliary lemmas and the final theorem:\<close>
+
+lemma tbbibb:
+  assumes "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" "(p\<^sub>0 ,p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
+  shows "is_bounding_box d p\<^sub>0 p\<^sub>1"
+  using assms by (auto simp add: to_bounding_box_def is_bounding_box_def)
+
+lemma pibb:
+  assumes "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" "(p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
+  shows "point_in_bounding_box d p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i))"
+  using assms by (auto simp add: min_def max_def to_bounding_box_def point_in_bounding_box_def)
+
+theorem query_area:
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> x!i \<and> x!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i) }"
+  using assms pibb tbbibb query_area' by (auto simp add: query_area_def)
+
+corollary
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = query_area q\<^sub>1 q\<^sub>0 kdt"
+  using assms query_area by auto
+
+corollary
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" 
+  assumes "p \<in> set_kdt kdt" "\<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i)"
+  shows "p \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
+  using assms query_area by blast
+
+corollary
+  assumes "invar d kdt" "dim q\<^sub>0 = d" "q\<^sub>0 = q\<^sub>1" "q\<^sub>0 \<in> set_kdt kdt"
+  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { q\<^sub>0 }"
+proof -
+  have QA: "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < d. q\<^sub>0!i = x!i }"
+    using query_area assms(1,2,3) by auto
+
+  have A: "\<forall>p \<in> query_area q\<^sub>0 q\<^sub>1 kdt. dim p = d"
+    using assms(1) QA invar_dim by blast
+  have B: "q\<^sub>0 \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
+    using assms(4) QA by blast
+  have C: "\<forall>p \<noteq> q\<^sub>0. dim p = d \<longrightarrow> (\<exists>i < d. q\<^sub>0!i \<noteq> p!i)"
+    using assms(2) nth_equalityI by fastforce
+
+  show ?thesis using QA A B C by blast
 qed
-
-lemma build'_complete:
-  "length ps = 2 ^ k \<Longrightarrow> complete_kdt (build' a d ps)"
-proof (induction ps arbitrary: a k rule: length_induct)
-  case (1 ps)
-
-  let ?sps = "sort_wrt_a a ps"
-  let ?a' = "(a + 1) mod d"
-  let ?l = "take (length ?sps div 2) ?sps"
-  let ?g = "drop (length ?sps div 2) ?sps"
-  let ?disc = "hd ?g ! a"
-
-  show ?case
-  proof (cases "length ps \<le> 1")
-    case True
-    then show ?thesis by simp
-  next
-    case False
-
-    hence LEN_LG: "length ?l = 2 ^ (k - 1)" "length ?g = 2 ^ (k - 1)"
-      using "1.prems" length_take_drop_div_2_eq by fastforce+
-    moreover have "length ?l < length ps" "length ?g < length ps"
-      using "1.prems" False length_take_drop_div_2_lt by auto
-    ultimately have L: "complete_kdt (build' ?a' d ?l)" and G: "complete_kdt (build' ?a' d ?g)"
-      using "1.IH" by simp_all
-
-    have "size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?g)"
-      using build'_size LEN_LG by auto
-    hence "height_kdt (build' ?a' d ?l) = height_kdt (build' ?a' d ?g)"
-      using L G complete_size_eq_height_eq by blast
-    moreover have "build' a d ps = Node a (hd ?g ! a) (build' ?a' d ?l) (build' ?a' d ?g)"
-      by (meson False build'.elims not_less)
-    ultimately show ?thesis using L G complete_kdt.simps(2) by presburger
-  qed
-qed
-
-
-
-
-text \<open>
-  Wrapping up the main theorems about build.
-\<close>
-
-theorem build:
-  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
-  shows "set ps = set_kdt (build ps)"
-    and "size_kdt (build ps) = length ps"
-    and "complete_kdt (build ps)"
-    and "invar d (build ps)"
-  using assms build_def build'_set apply simp
-  using assms build_def build'_size apply simp
-  using assms build_def build'_complete apply simp
-  using assms by (metis build'_invar build_def length_0_conv list.set_sel(1) power_not_zero zero_neq_numeral)
-
-corollary build_height:
-  assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
-  shows "length ps = 2 ^ (height_kdt (build ps) - 1)"
-  by (metis size_kdt_2_pow_height_kdt_m_1 assms build(2,3))
 
 
 
@@ -1170,170 +980,6 @@ proof -
     by (smt assms k_nearest_neighbors_1(2) sorted_wrt_last_max)
   thus "\<forall>q \<in> (set_kdt kdt - set kns). \<forall>n \<in> set kns. sqed n p \<le> sqed q p"
     using assms k_nearest_neighbors_def k_nearest_neighbors_1(1) by (metis length_pos_if_in_set min_less_iff_conj)
-qed
-
-
-
-
-text \<open>
-  Verifying d-dimensional queries on the k-d tree.
-
-  Given two d-dimensional points p0 and p1 which bound the search space, the query should return
-  only the points which satisfy the following criteria:
-
-  For every point p in the resulting set:
-    For every axis a \<in> [0, d-1]:
-      min (p0!a) (p1!a) <= p!a and p!a <= max (p0!a) (p1!a)
-
-  For example: In a 2-d tree a query corresponds to selecting all the points in
-  the rectangle which has p0 and p1 as its defining edges.
-\<close>
-
-text \<open>
-  Simplifying the problem:
-
-  Assume that the two given points p0 and p1 which define the bounding box are the left lower
-  and the right upper point.
-
-  For every point p in the resulting set:
-    For every axis a \<in> [0, d-1]:
-      p0!a <= p1!a
-\<close>
-
-text\<open>The query function and auxiliary definitions:\<close>
-
-definition is_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
-  "is_bounding_box d p\<^sub>0 p\<^sub>1 \<longleftrightarrow> dim p\<^sub>0 = d \<and> dim p\<^sub>1 = d \<and> (\<forall>i < d. p\<^sub>0!i \<le> p\<^sub>1!i)"
-
-definition point_in_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
-  "point_in_bounding_box d p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < d. p\<^sub>0!i \<le> p!i \<and> p!i \<le> p\<^sub>1!i)"
-
-fun query_area' :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
-  "query_area' d p\<^sub>0 p\<^sub>1 (Leaf p) = (
-    if point_in_bounding_box d p p\<^sub>0 p\<^sub>1 then {p} else {}
-  )"
-| "query_area' d p\<^sub>0 p\<^sub>1 (Node a s l r) = (
-    if s < p\<^sub>0!a then
-      query_area' d p\<^sub>0 p\<^sub>1 r
-    else if p\<^sub>1!a < s then
-      query_area' d p\<^sub>0 p\<^sub>1 l
-    else
-      query_area' d p\<^sub>0 p\<^sub>1 l \<union> query_area' d p\<^sub>0 p\<^sub>1 r
-  )"
-
-
-
-
-text \<open>Auxiliary lemmas:\<close>
-
-lemma l_pibb_empty:
-  assumes "invar d (Node a s l r)" "s < p\<^sub>0!a"
-  shows "{ p \<in> set_kdt l. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 } = {}"
-  using assms
-proof -
-  have "\<forall>p \<in> set_kdt l. p!a < p\<^sub>0!a"
-    using invar_l_le_a assms(1,2) by auto
-  hence "\<forall>p \<in> set_kdt l. (\<exists>i < d. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(1) invar_axis_lt_d by blast
-  hence "\<forall>p \<in> set_kdt l. \<not>point_in_bounding_box d p p\<^sub>0 p\<^sub>1"
-    using point_in_bounding_box_def by fastforce
-  thus ?thesis by blast
-qed
-
-lemma r_pibb_empty:
-  assumes "invar d (Node a s l r)" "p\<^sub>1!a < s"
-  shows "{ p \<in> set_kdt r. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 } = {}"
-  using assms
-proof -
-  have "\<forall>p \<in> set_kdt r. p\<^sub>1!a < p!a"
-    using invar_r_ge_a assms(1,2) by auto
-  hence "\<forall>p \<in> set_kdt r. (\<exists>i < d. p!i < p\<^sub>0!i \<or> p\<^sub>1!i < p!i)"
-    using assms(1) invar_axis_lt_d by blast
-  hence "\<forall>p \<in> set_kdt r. \<not>point_in_bounding_box d p p\<^sub>0 p\<^sub>1"
-   using point_in_bounding_box_def by fastforce
-  thus ?thesis by blast
-qed
-
-
-
-
-text \<open>The simplified main theorem:\<close>
-
-theorem query_area':
-  assumes "invar d kdt"
-  shows "query_area' d p\<^sub>0 p\<^sub>1 kdt = { p \<in> set_kdt kdt. point_in_bounding_box d p p\<^sub>0 p\<^sub>1 }"
-  using assms l_pibb_empty r_pibb_empty
-  by (induction kdt) auto
-
-
-
-
-text \<open>
-  Un-simplifying the problem:
-
-  Given two arbitrary points p0 and p1 which only satisfy the dimensionality property,
-  does the query function work?
-
-  Hide the is_bounding_box abstraction.
-\<close>
-
-text \<open>Auxiliary functions and the final query function:\<close>
-
-fun min_max :: "real * real \<Rightarrow> real * real" where
-  "min_max (a, b) = (min a b, max a b)"
-
-definition to_bounding_box :: "point \<Rightarrow> point \<Rightarrow> point * point" where
-  "to_bounding_box p\<^sub>0 p\<^sub>1 = (let ivs = map min_max (zip p\<^sub>0 p\<^sub>1) in (map fst ivs, map snd ivs))"
-
-definition query_area :: "point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point set" where
-  "query_area q\<^sub>0 q\<^sub>1 kdt = (let (p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1 in query_area' (dim q\<^sub>0) p\<^sub>0 p\<^sub>1 kdt)"
-
-
-
-
-text \<open>Auxiliary lemmas and the final theorem:\<close>
-
-lemma tbbibb:
-  assumes "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" "(p\<^sub>0 ,p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
-  shows "is_bounding_box d p\<^sub>0 p\<^sub>1"
-  using assms by (auto simp add: to_bounding_box_def is_bounding_box_def)
-
-lemma pibb:
-  assumes "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" "(p\<^sub>0, p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
-  shows "point_in_bounding_box d p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i))"
-  using assms by (auto simp add: min_def max_def to_bounding_box_def point_in_bounding_box_def)
-
-theorem query_area:
-  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d"
-  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> x!i \<and> x!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i) }"
-  using assms pibb tbbibb query_area' by (auto simp add: query_area_def)
-
-corollary
-  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d"
-  shows "query_area q\<^sub>0 q\<^sub>1 kdt = query_area q\<^sub>1 q\<^sub>0 kdt"
-  using assms query_area by auto
-
-corollary
-  assumes "invar d kdt" "dim q\<^sub>0 = d" "dim q\<^sub>1 = d" 
-  assumes "p \<in> set_kdt kdt" "\<forall>i < d. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i)"
-  shows "p \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
-  using assms query_area by blast
-
-corollary
-  assumes "invar d kdt" "dim q\<^sub>0 = d" "q\<^sub>0 = q\<^sub>1" "q\<^sub>0 \<in> set_kdt kdt"
-  shows "query_area q\<^sub>0 q\<^sub>1 kdt = { q\<^sub>0 }"
-proof -
-  have QA: "query_area q\<^sub>0 q\<^sub>1 kdt = { x \<in> set_kdt kdt. \<forall>i < d. q\<^sub>0!i = x!i }"
-    using query_area assms(1,2,3) by auto
-
-  have A: "\<forall>p \<in> query_area q\<^sub>0 q\<^sub>1 kdt. dim p = d"
-    using assms(1) QA invar_dim by blast
-  have B: "q\<^sub>0 \<in> query_area q\<^sub>0 q\<^sub>1 kdt"
-    using assms(4) QA by blast
-  have C: "\<forall>p \<noteq> q\<^sub>0. dim p = d \<longrightarrow> (\<exists>i < d. q\<^sub>0!i \<noteq> p!i)"
-    using assms(2) nth_equalityI by fastforce
-
-  show ?thesis using QA A B C by blast
 qed
 
 end
