@@ -1,4 +1,4 @@
-theory Balanced2
+theory Balanced
 imports
   Complex_Main
   "Median_Of_Medians_Selection"
@@ -31,12 +31,15 @@ fun size_kdt :: "kdt \<Rightarrow> nat" where
 | "size_kdt (Node _ _ l r) = size_kdt l + size_kdt r"
 
 fun height_kdt :: "kdt \<Rightarrow> nat" where
-  "height_kdt (Leaf _) = 1"
+  "height_kdt (Leaf _) = 0"
 | "height_kdt (Node _ _ l r) = max (height_kdt l) (height_kdt r) + 1"
 
-lemma height_kdt_gt_0:
-  "height_kdt kdt > 0"
-  by (cases kdt) auto
+fun min_height_kdt :: "kdt \<Rightarrow> nat" where
+  "min_height_kdt (Leaf _) = 0"
+| "min_height_kdt (Node _ _ l r) = min (min_height_kdt l) (min_height_kdt r) + 1"
+
+definition balanced :: "kdt \<Rightarrow> bool" where
+  "balanced kdt \<longleftrightarrow> height_kdt kdt - min_height_kdt kdt \<le> 1"
 
 fun complete_kdt :: "kdt \<Rightarrow> bool" where
   "complete_kdt (Leaf _) = True"
@@ -324,9 +327,6 @@ lemma pow2k_pow2k_1:
     and "y = 2 ^ (k - 1)"
   using assms by (induction k) auto
 
-lemma pow2k_eq_2pow2k_1: "k > 0 \<Longrightarrow> 2 * 2 ^ (k - 1) = 2 ^ k"
-  by (cases k) auto
-
 lemma pow2xy:
   "(2 :: nat) ^ x = 2 ^ y \<Longrightarrow> x = y"
   by simp
@@ -433,18 +433,16 @@ qed
 
 lemma size_height_kdt:
   assumes "complete_kdt kdt" 
-  shows "size_kdt kdt = 2 ^ (height_kdt kdt - 1)"
+  shows "size_kdt kdt = 2 ^ (height_kdt kdt)"
   using assms
 proof (induction kdt)
   case (Leaf p)
   thus ?case by simp
 next
   case (Node a d l r)
-  have "size_kdt (Node a d l r) = 2 * 2 ^ (height_kdt l - 1)"
+  have "size_kdt (Node a d l r) = 2 * 2 ^ (height_kdt l)"
     using Node by simp
-  also have "... = 2 ^ height_kdt l"
-    using pow2k_eq_2pow2k_1 height_kdt_gt_0 by auto
-  also have "... = 2 ^ (height_kdt (Node a d l r) - 1)"
+  also have "... = 2 ^ (height_kdt (Node a d l r))"
     using Node by simp
   finally show ?case .
 qed
@@ -453,19 +451,18 @@ lemma complete_size_height_kdt:
   assumes "complete_kdt kdt1" "complete_kdt kdt2" "size_kdt kdt1 = size_kdt kdt2"
   shows "height_kdt kdt1 = height_kdt kdt2"
 proof -
-  have "2 ^ (height_kdt kdt1 - 1) = 2 ^ (height_kdt kdt2 - 1)"
+  have "2 ^ (height_kdt kdt1) = 2 ^ (height_kdt kdt2)"
     using size_height_kdt assms by simp
-  hence "height_kdt kdt1 - 1 = height_kdt kdt2 - 1"
+  hence "height_kdt kdt1 = height_kdt kdt2"
     using pow2xy by blast
-  thus ?thesis using height_kdt_gt_0
-    by (metis One_nat_def Suc_pred)
+  thus ?thesis by simp
 qed
 
 lemma build'_size:
-  assumes "length ps = 2 ^ k"
+  assumes "length ps > 0"
   shows "size_kdt (build' a d ps) = length ps"
   using assms
-proof (induction ps arbitrary: a k rule: length_induct)
+proof (induction ps arbitrary: a rule: length_induct)
   case (1 ps)
   then show ?case
   proof (cases "length ps \<le> 1")
@@ -482,21 +479,15 @@ proof (induction ps arbitrary: a k rule: length_induct)
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have K: "k > 0"
-      using "1.prems" False gr0I by force
-    hence E: "even (length ps)" "length ps > 0"
-      using False "1.prems"(1) by simp_all
-    hence PLR: "length ps = length ?l + length ?r" "length ?l = length ?r"
-      using partition_by_median_length E fast by (metis prod.collapse)+
-    hence L: "length ?l = 2 ^ (k - 1)" and R: "length ?r = 2 ^ (k - 1)"
-      using K "1.prems"(1) pow2k_pow2k_1 by simp_all
+    have 2: "length ps = length ?l + length ?r" "length ?r - length ?l \<le> 1" "length ?l \<le> length ?r"
+      using "1.prems" partition_by_median_length(1,2,3) fast by (metis prod.collapse)+
     moreover have "length ?l < length ps" "length ?r < length ps"
-      using "1.prems"(1) K L R by simp_all
+      using False "1.prems" 2 by auto
     ultimately have "size_kdt (build' ?a' d ?l) = length ?l" "size_kdt (build' ?a' d ?r) = length ?r" 
       using "1.IH" by simp_all
     moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
       using False by simp
-    ultimately show ?thesis using PLR by auto
+    ultimately show ?thesis using 2 by simp
   qed
 qed
 
@@ -538,7 +529,7 @@ proof (induction ps arbitrary: a k rule: length_induct)
       using "1.IH" by simp_all
 
     have "size_kdt (build' ?a' d ?l) = length ?l" "size_kdt (build' ?a' d ?r) = length ?r"
-      using build'_size L R by simp_all
+      using L R by (simp_all add: build'_size)
     hence "size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?r)"
       using PLR(2) by simp
     hence "height_kdt (build' ?a' d ?l) = height_kdt (build' ?a' d ?r)"
@@ -558,14 +549,71 @@ theorem build:
     and "complete_kdt (build ps)"
     and "invar d (build ps)"
   using assms build_def build'_set      apply simp
-  using assms build_def build'_size     apply simp
+  using assms build_def                 apply (simp add: build'_size)
   using assms build_def build'_complete apply simp
   using assms build_def build'_invar
   by (metis length_0_conv list.set_sel(1) power_not_zero zero_neq_numeral)
 
 corollary build_height:
   assumes "length ps = 2 ^ k" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "d > 0"
-  shows "length ps = 2 ^ (height_kdt (build ps) - 1)"
+  shows "length ps = 2 ^ (height_kdt (build ps))"
   by (metis assms build(2,3) size_height_kdt)
+
+
+
+
+lemma AUX:
+  fixes r :: nat and l :: nat
+  assumes "r - l \<le> 1" "r \<ge> l"
+  shows "l + 1 = r \<or> l = r"
+  using assms by linarith
+
+lemma balanced_Node:
+  assumes "size_kdt l + 1 = size_kdt r \<or> size_kdt l = size_kdt r" "balanced l" "balanced r"
+  shows "balanced (Node a s l r)"
+  sorry
+
+
+
+
+lemma build'_balanced:
+  assumes "length ps > 0"
+  shows "balanced (build' a d ps)"
+  using assms
+proof (induction ps arbitrary: a rule: length_induct)
+  case (1 ps)
+  show ?case
+  proof (cases "length ps \<le> 1")
+    case True
+    then obtain p where "ps = [p]"
+      using "1.prems" by (cases ps) auto
+    thus ?thesis unfolding balanced_def by simp
+  next
+    case False
+
+    let ?a' = "(a + 1) mod d"
+    let ?lmr = "fast_partition_by_median a ps"
+    let ?l = "fst ?lmr"
+    let ?m = "fst (snd ?lmr)"
+    let ?r = "snd (snd ?lmr)"
+
+    have 2: "length ps = length ?l + length ?r" "length ?r - length ?l \<le> 1" "length ?l \<le> length ?r"
+      using partition_by_median_length(1,2,3) fast "1.prems" by (metis prod.collapse)+
+    hence 3: "length ?l + 1 = length ?r \<or> length ?l = length ?r"
+      using AUX by simp
+    moreover have 4: "length ?l < length ps" "length ?r < length ps"
+      using False "1.prems" 2 by auto
+    moreover have 5: "length ?l > 0" "length ?r > 0"
+      using "1.prems" "2"(1) 3 4 by linarith+
+    ultimately have B: "balanced (build' ?a' d ?l)" "balanced (build' ?a' d ?r)"
+      using "1.IH" by simp_all
+
+    have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+      using False by simp
+    moreover have "size_kdt (build' ?a' d ?l) + 1 = size_kdt (build' ?a' d ?r) \<or> size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?r)"
+      using 3 5 build'_size by simp
+    ultimately show ?thesis using B balanced_Node by auto
+  qed
+qed
 
 end
