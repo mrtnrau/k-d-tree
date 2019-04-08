@@ -36,14 +36,35 @@ fun complete :: "kdt \<Rightarrow> bool" where
 
 
 
-lemma size_ge0[simp]: "0 < size t"
-  by (induction t) auto
+lemma size_ge0[simp]: "0 < size kdt"
+  by (induction kdt) auto
 
-lemma height_le_size_tree: "height kdt \<le> size kdt"
+lemma eq_size_0[simp]: "size (Leaf p) = 1"
+  by simp
+
+lemma eq_0_size[simp]: "1 = size (Leaf p)"
+  by simp
+
+lemma neq_Leaf_iff: "(\<nexists>p. kdt = Leaf p) = (\<exists>a s l r. kdt = Node a s l r)"
+  by (cases kdt) auto
+
+lemma eq_height_0[simp]: "height kdt = 0 \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
+  by (cases kdt) auto
+
+lemma eq_0_height[simp]: "0 = height kdt \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
+  by (cases kdt) auto
+
+lemma eq_min_height_0[simp]: "min_height kdt = 0 \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
+  by (cases kdt) auto
+
+lemma eq_0_min_height[simp]: "0 = min_height kdt \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
+  by (cases kdt) auto
+
+lemma height_le_size_tree: "height kdt \<le> size kdt" (* TODO *)
   apply (induction kdt)
   apply (auto simp add: max_def)
-  apply (metis Suc_diff_le Suc_leI diff_is_0_eq' le_add2 le_antisym le_diff_conv not_less_eq_eq size_ge0)
-  by (meson add_mono_thms_linordered_field(4) dual_order.trans not_add_less1 not_less_eq_eq size_ge0)
+  using order_trans apply fastforce
+  by (meson add_mono_thms_linordered_field(4) not_add_less1 not_less_eq_eq order.trans size_ge0)
 
 lemma size1_height: "size kdt \<le> 2 ^ height kdt"
 proof(induction kdt)
@@ -79,7 +100,7 @@ proof(induction kdt)
 qed simp
 
 lemma complete_iff_height: "complete kdt \<longleftrightarrow> (min_height kdt = height kdt)"
-  apply(induction kdt)
+  apply (induction kdt)
   apply simp
   apply (simp add: min_def max_def)
   by (metis le_antisym le_trans min_height_le_height)
@@ -89,12 +110,13 @@ lemma size1_if_complete: "complete kdt \<Longrightarrow> size kdt = 2 ^ height k
 
 lemma complete_if_size1_height: "size kdt = 2 ^ height kdt \<Longrightarrow> complete kdt"
 proof (induction "height kdt" arbitrary: kdt)
-  case 0 thus ?case
-    by (metis complete_iff_height le_zero_eq min_height_le_height)
+  case 0 thus ?case by auto
 next
   case (Suc h)
+  hence "\<nexists>p. kdt = Leaf p"
+    by auto
   then obtain a s l r where [simp]: "kdt = Node a s l r"
-    by (metis Suc.hyps(2) Zero_not_Suc height.elims)
+    using neq_Leaf_iff by auto
   have 1: "height l \<le> h" and 2: "height r \<le> h" using Suc(2) by(auto)
   have 3: "\<not> height l < h"
   proof
@@ -130,13 +152,14 @@ qed
 
 lemma complete_if_size1_min_height: "size kdt = 2 ^ min_height kdt \<Longrightarrow> complete kdt"
 proof (induct "min_height kdt" arbitrary: kdt)
-  case 0 thus ?case
-    by (metis add_is_0 complete.simps(1) min_height.elims one_neq_zero)
+  case 0 thus ?case by auto
 next
   case (Suc h)
+  hence "\<nexists>p. kdt = Leaf p"
+    by auto
   then obtain a s l r where [simp]: "kdt = Node a s l r"
-    by (metis Zero_not_Suc min_height.elims)
-  have 1: "h \<le> min_height l" and 2: "h \<le> min_height r" using Suc(2) by(auto)
+    using neq_Leaf_iff by auto
+  have 1: "h \<le> min_height l" and 2: "h \<le> min_height r" using Suc(2) by (auto)
   have 3: "\<not> h < min_height l"
   proof
     assume 0: "h < min_height l"
@@ -188,7 +211,6 @@ lemma balanced_subtreeR: "balanced (Node a s l r) \<Longrightarrow> balanced r"
   by (simp add: balanced_def)
 
 lemma balanced_optimal:
-  fixes kdt :: kdt and kdt' :: kdt
   assumes "balanced kdt" "size kdt \<le> size kdt'"
   shows "height kdt \<le> height kdt'"
 proof (cases "complete kdt")
