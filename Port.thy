@@ -339,7 +339,8 @@ proof -
   show ?thesis by(simp add:balanced_def)
 qed
 
-lemma balanced_sym: "balanced (Node a s l r) \<Longrightarrow> balanced (Node a' s' r l)"
+lemma balanced_sym: 
+  "balanced (Node a s l r) \<Longrightarrow> balanced (Node a' s' r l)"
   by (auto simp: balanced_def)
 
 lemma balanced_Node_if_wbal2:
