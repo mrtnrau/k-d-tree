@@ -31,30 +31,151 @@ lemma B2:
   apply (auto simp add: min_def max_def)
   done
 
+lemma AUX1:
+  assumes "(2 :: nat) ^ x + 1 = 2 ^ y"
+  shows "x = 0"
+proof (rule ccontr)
+  assume "\<not>(x = 0)"
+  hence "x > 0"
+    by simp
+  hence "even ((2 :: nat) ^ x)"
+    by simp
+  hence "odd ((2 :: nat) ^ x + 1)"
+    by simp
+  moreover have "(2 :: nat) ^ x > 0"
+    by simp
+  hence "(2 :: nat) ^ y > 1"
+    using assms by linarith
+  hence "even ((2 :: nat) ^ y)"
+    using div_eq_0_iff by fastforce
+  ultimately show False using assms by metis
+qed
+
+lemma AUX3:
+  "(2 :: nat) = 2 ^ y \<Longrightarrow> y = 1"
+  apply (induction y)
+   apply (auto)
+  done
+
+lemma AUX2:
+  assumes "(2 :: nat) ^ x + 1 = 2 ^ y"
+  shows "y = (1 :: nat)"
+proof -
+  have "(2 :: nat) = 2 ^ y"
+    using assms AUX1 by force
+  hence "y = 1"
+    using AUX3 by simp
+  thus ?thesis by simp
+qed
+
 lemma B3:
   assumes "size1 l + 1 = size1 r" "balanced l" "balanced r" "min_height l < min_height r"
   shows "min_height l + 1 = min_height r"
-proof (cases "complete r")
-  case True
+proof -
+  consider (A) "complete r \<and> complete l" | (B) "complete r \<and> \<not>complete l" | (C) "\<not>complete r \<and> complete l" | (D) "\<not>complete r \<and> \<not>complete l"
+    by blast
   then show ?thesis
-    by (metis (no_types, lifting) Suc_eq_plus1 Suc_leI assms(1) assms(2) assms(4) complete_if_size1_height complete_iff_height leD le_less less_Suc_eq min_height_height_if_balanced one_less_numeral_iff power_strict_increasing_iff semiring_norm(76) size1_height size1_if_complete)
-next
-  case False
-  then show ?thesis
-    by (smt Suc_eq_plus1 Suc_leI assms(1) assms(2) assms(4) leD le_less le_less_trans min_height_height_if_balanced min_height_size1_if_incomplete one_less_numeral_iff power_strict_increasing_iff semiring_norm(76) size1_height_if_incomplete size1_if_complete)
+  proof cases
+    case A
+    hence "2 ^ min_height l = size1 l" "size1 r = 2 ^ min_height r"
+      by (simp add: complete_iff_height size1_if_complete)+
+    hence "(2 :: nat) ^ min_height l + 1 = 2 ^ min_height r"
+      using assms(1) by simp
+    hence "min_height l = 0" "min_height r = 1"
+      using AUX1[of "min_height l" "min_height r"] AUX2[of "min_height l" "min_height r"] by simp_all
+    then show ?thesis by simp
+  next
+    case B
+    hence "2 ^ min_height r = size1 r"
+      using complete_iff_height size1_if_complete by force
+    also have "... = size1 l + 1"
+      using assms(1) by simp
+    also have "... \<le> 2 ^ height l"
+      using B discrete size1_height_if_incomplete by blast
+    also have "... = (2 :: nat) ^ (min_height l + 1)"
+      using B assms(2) complete_iff_height min_height_height_if_balanced by fastforce
+    finally have "2 ^ min_height r \<le> (2 :: nat) ^ (min_height l + 1)" by simp
+    hence "min_height r \<le> min_height l + 1"
+      using one_less_numeral_iff power_le_imp_le_exp semiring_norm(76) by blast
+    then show ?thesis using assms(4) by simp
+  next
+    case C
+    hence "2 ^ min_height r < size1 r"
+      using min_height_size1_if_incomplete by blast
+    also have "... = size1 l + 1"
+      using assms(1) by auto
+    also have "... = 2 ^ (min_height l) + 1"
+      by (metis C complete_iff_height size1_if_complete)
+    finally have "(2 :: nat) ^ min_height r < 2 ^ (min_height l) + 1" .
+    hence "(2 :: nat) ^ min_height r \<le> 2 ^ min_height l"
+      by linarith
+    moreover have "(2 :: nat) ^ min_height l < 2 ^ min_height r"
+      by (simp add: assms(4))
+    ultimately have "False"
+      by auto
+    then show ?thesis by simp
+  next
+    case D
+    hence "2 ^ min_height r \<le> size1 r"
+      using min_height_size1 by blast
+    also have "... = size1 l + 1"
+      using assms(1) by simp
+    also have "... \<le> 2 ^ height l"
+      using D discrete size1_height_if_incomplete by blast
+    also have "... = (2 :: nat) ^ (min_height l + 1)"
+      using D assms(2) complete_iff_height min_height_height_if_balanced by fastforce
+    finally have "2 ^ min_height r \<le> (2 :: nat) ^ (min_height l + 1)" by simp
+    hence "min_height r \<le> min_height l + 1"
+      using one_less_numeral_iff power_le_imp_le_exp semiring_norm(76) by blast
+    then show ?thesis using assms(4) by simp
+  qed
 qed
 
 lemma B4:
   assumes "size1 l + 1 = size1 r" "balanced l" "balanced r" "min_height l + 1 = min_height r"
   shows "min_height r = height r"
-proof (cases "complete l")
-  case True
+proof -
+  consider (A) "complete r \<and> complete l" | (B) "complete r \<and> \<not>complete l" | (C) "\<not>complete r \<and> complete l" | (D) "\<not>complete r \<and> \<not>complete l"
+    by blast
   then show ?thesis
-    by (metis Suc_eq_plus1 assms(1) assms(4) complete_iff_height less_Suc_eq min_height_size1_if_incomplete not_add_less1 power_strict_increasing_iff rel_simps(49) rel_simps(9) size1_if_complete)
-next
-case False
-  then show ?thesis
-    by (metis Suc_eq_plus1 Suc_leI assms(1) assms(2) assms(4) complete_if_size1_min_height le_antisym min_height_height_if_balanced min_height_size1 power_inject_exp rel_simps(49) rel_simps(9) size1_height size1_height_if_incomplete size1_if_complete)
+  proof cases
+    case A
+    then show ?thesis
+      using complete_iff_height by blast
+  next
+    case B
+    then show ?thesis using assms
+      using complete_iff_height by blast
+  next
+    case C
+    hence "2 ^ min_height r < size1 r"
+      using min_height_size1_if_incomplete by blast
+    also have "... = size1 l + 1"
+      using assms(1) by auto
+    also have "... = 2 ^ (min_height l) + 1"
+      by (metis C complete_iff_height size1_if_complete)
+    finally have "(2 :: nat) ^ min_height r < 2 ^ (min_height l) + 1" .
+    hence "(2 :: nat) ^ min_height r \<le> 2 ^ min_height l"
+      by linarith
+    moreover have "(2 :: nat) ^ min_height l < 2 ^ min_height r"
+      using assms(4) by auto
+    ultimately have "False"
+      by auto
+    then show ?thesis by simp
+  next
+    case D
+    have "size1 r = size1 l + 1"
+      using assms(1) by simp
+    also have "... \<le> 2 ^ height l"
+      using D discrete size1_height_if_incomplete by blast
+    also have "... = 2 ^ (min_height r)"
+      using D assms(2,4) complete_iff_height min_height_height_if_balanced by force
+    finally have "size1 r \<le> 2 ^ min_height r" .
+    moreover have "2 ^ min_height r < size1 r"
+      by (simp add: D min_height_size1_if_incomplete)
+    ultimately have "False" by simp
+    then show ?thesis by simp
+  qed
 qed
 
 lemma B5:
