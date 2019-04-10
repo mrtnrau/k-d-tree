@@ -70,13 +70,15 @@ lemma size_ge0[simp]:
   "0 < size kdt"
   by (induction kdt) auto
 
-lemma eq_size_0[simp]: 
-  "size (Leaf p) = 1"
-  by simp
+lemma eq_size_1[simp]:
+  "size kdt = 1 \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
+  using size_ge0 apply (induction kdt) apply (auto)
+  using Balanced.size_ge0 nat_less_le apply blast+
+  done
 
-lemma eq_0_size[simp]: 
-  "1 = size (Leaf p)"
-  by simp
+lemma eq_1_size[simp]:
+  "1 = size kdt \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
+  using eq_size_1 by metis
 
 lemma neq_Leaf_iff: 
   "(\<nexists>p. kdt = Leaf p) = (\<exists>a s l r. kdt = Node a s l r)"
@@ -926,7 +928,7 @@ proof (induction ps arbitrary: a rule: length_induct)
     hence 3: "length ?l + 1 = length ?r \<or> length ?l = length ?r"
       using AUX by simp
     moreover have 4: "length ?l < length ps" "length ?r < length ps"
-      using False "1.prems" 2 by auto
+      using False "1.prems" 2(1,2,3) by auto
     moreover have 5: "length ?l > 0" "length ?r > 0"
       using "1.prems" "2"(1) 3 4 by linarith+
     ultimately have B: "balanced (build' ?a' d ?l)" "balanced (build' ?a' d ?r)"
@@ -938,6 +940,24 @@ proof (induction ps arbitrary: a rule: length_induct)
       using 3 5 build'_size by simp
     ultimately show ?thesis using B balanced_Node_if_wbal2 by auto
   qed
+qed
+
+
+
+
+lemma complete_if_balanced_size_2powh:
+  assumes "balanced kdt" "size kdt = 2 ^ h"
+  shows "complete kdt"
+proof (rule ccontr)
+  assume "\<not> complete kdt"
+  hence "2 ^ (min_height kdt) < size kdt" "size kdt < 2 ^ height kdt"
+    by (simp_all add: min_height_size_if_incomplete size_height_if_incomplete)
+  hence "height kdt - min_height kdt > 1"
+    using assms(2) by simp
+  hence "\<not> balanced kdt"
+    using balanced_def by simp
+  thus "False"
+    using assms(1) by simp
 qed
 
 end
