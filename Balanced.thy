@@ -150,27 +150,24 @@ proof -
 
   have *: "(?lt, ?eq, ?gt) = partition a ?m ps"
     by simp
-  have 0: "length ?lt \<le> (length ps - 1) div 2"
+  have "length ?lt \<le> (length ps - 1) div 2"
     using assms * partition_length(2) size_axis_median_length(1) by presburger
-  have 1: "length ?gt \<le> length ps div 2"
+  moreover have "length ?gt \<le> length ps div 2"
     using assms * partition_length(4) size_axis_median_length(2) by presburger
-  have 2: "length ps = length ?lt + length ?eq + length ?gt"
+  moreover have "length ps = length ?lt + length ?eq + length ?gt"
     using * partition_length(1) by simp
-  have 3: "length ?l = length ps div 2"
-    using 0 1 2 by simp
+  ultimately have L: "length ?l = length ps div 2"
+    by simp
 
   have **: "(?l, ?m, ?r) = partition_by_median a ps"
     by (auto simp add: Let_def partition_by_median_def split: prod.splits)
-  hence 4: "length ps = length ?l + length ?r"
+  hence "length ps = length ?l + length ?r"
     using partition_by_median_length_1 by blast
-  have 5: "length ?l \<le> length ?r"
-    using 3 4 by linarith
-  have 6: "length ?r - length ?l \<le> 1"
-    using 3 4 5 by presburger
+  hence "length ?l \<le> length ?r" "length ?r - length ?l \<le> 1"
+    using L by linarith+
 
-  show "length r - length l \<le> 1"
-       "length l \<le> length r"
-    using ** 5 6 by (metis Pair_inject assms(1))+
+  thus "length l \<le> length r" "length r - length l \<le> 1" 
+    using ** by (metis Pair_inject assms(1))+
 qed
 
 lemma partition_by_median_length_3: 
@@ -217,27 +214,27 @@ lemmas partition_by_median_length =
 
 
 function (sequential) build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarrow> kdt" where
-  "build' a d [] = undefined"
-| "build' a d [p] = Leaf p" 
-| "build' a d ps = (
-    let a' = (a + 1) mod d in
+  "build' a k [] = undefined"
+| "build' a k [p] = Leaf p" 
+| "build' a k ps = (
+    let a' = (a + 1) mod k in
     let (l, m, r) = partition_by_median a ps in
-    Node a m (build' a' d l) (build' a' d r)
+    Node a m (build' a' k l) (build' a' k r)
   )"
   by pat_completeness auto
 termination build'
   using partition_by_median_length(4,5)
-  apply (relation "measure (\<lambda>(a, d, ps). length ps)")
+  apply (relation "measure (\<lambda>(_, _, ps). length ps)")
   apply (auto)
   apply fastforce+
   done
 
 lemma build'_simp_1:
-  "ps = [p] \<Longrightarrow> build' a d ps = Leaf p"
+  "ps = [p] \<Longrightarrow> build' a k ps = Leaf p"
   by simp
 
 lemma build'_simp_2:
-  "ps = p\<^sub>0 # p\<^sub>1 # ps' \<Longrightarrow> a' = (a + 1) mod d \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build' a d ps = Node a m (build' a' d l) (build' a' d r)"
+  "ps = p\<^sub>0 # p\<^sub>1 # ps' \<Longrightarrow> a' = (a + 1) mod k \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build' a k ps = Node a m (build' a' k l) (build' a' k r)"
   using build'.simps(3) by (auto simp add: Let_def split: prod.splits)
 
 lemma length_ps_gt_1:
@@ -245,7 +242,7 @@ lemma length_ps_gt_1:
   by (induction ps) (auto simp add: neq_Nil_conv)
 
 lemma build'_simp_3:
-  "1 < length ps \<Longrightarrow> a' = (a + 1) mod d \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build' a d ps = Node a m (build' a' d l) (build' a' d r)"
+  "1 < length ps \<Longrightarrow> a' = (a + 1) mod k \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build' a k ps = Node a m (build' a' k l) (build' a' k r)"
   using build'_simp_2 length_ps_gt_1 by fast
 
 lemmas build'_simps[simp] = build'_simp_1 build'_simp_3
@@ -257,7 +254,7 @@ declare build'.simps[simp del]
 
 lemma build'_set:
   assumes "0 < length ps"
-  shows "set ps = set_kdt (build' a d ps)"
+  shows "set ps = set_kdt (build' a k ps)"
   using assms
 proof (induction ps arbitrary: a rule: length_induct)
   case (1 ps)
@@ -270,25 +267,26 @@ proof (induction ps arbitrary: a rule: length_induct)
   next
     case False
 
-    let ?a' = "(a + 1) mod d"
+    let ?a' = "(a + 1) mod k"
     let ?lmr = "partition_by_median a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have "set ?l = set_kdt (build' ?a' d ?l)" "set ?r = set_kdt (build' ?a' d ?r)" 
+    have "set ?l = set_kdt (build' ?a' k ?l)" "set ?r = set_kdt (build' ?a' k ?r)" 
       using False partition_by_median_length(4,5,6,7)[of ?l ?m ?r a ps] "1.IH" by force+
     moreover have "set ps = set ?l \<union> set ?r"
       using partition_by_median_set by (metis prod.collapse)
-    moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+    moreover have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
       using False by simp
-    ultimately show ?thesis by auto
+    ultimately show ?thesis
+      by auto
   qed
 qed
 
 lemma build'_invar:
-  assumes "0 < length ps" "\<forall>p \<in> set ps. dim p = d" "distinct ps" "a < d"
-  shows "invar d (build' a d ps)"
+  assumes "0 < length ps" "\<forall>p \<in> set ps. dim p = k" "distinct ps" "a < k"
+  shows "invar k (build' a k ps)"
   using assms
 proof (induction ps arbitrary: a rule: length_induct)
   case (1 ps)
@@ -297,46 +295,46 @@ proof (induction ps arbitrary: a rule: length_induct)
     case True
     then obtain p where P: "ps = [p]"
       using "1.prems" by (cases ps) auto
-    hence "dim p = d"
+    hence "dim p = k"
       using "1.prems"(2) by simp
     thus ?thesis using P by simp
   next
     case False
 
-    let ?a' = "(a + 1) mod d"
+    let ?a' = "(a + 1) mod k"
     let ?lmr = "partition_by_median a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have A': "?a' < d"
+    have 0: "?a' < k"
       using "1.prems"(4) by auto
-
-    have *: "length ps = length ?l + length ?r"
+    have 1: "length ps = length ?l + length ?r"
       using partition_by_median_length by (metis prod.collapse)+
-    hence **: "length ?l < length ps" "length ?r < length ps"
+    hence 2: "length ?l < length ps" "length ?r < length ps"
       using False partition_by_median_length(4,5) not_le_imp_less "1.prems" by (smt prod.collapse)+
-    hence ***: "0 < length ?l" "0 < length ?r"
-      using * False partition_by_median_length(6,7) by simp_all
+    hence 3: "0 < length ?l" "0 < length ?r"
+      using 1 False partition_by_median_length(6,7) by simp_all
     moreover have SPLR: "set ps = set ?l \<union> set ?r"
       using partition_by_median_set by (metis prod.collapse)
-    moreover have "distinct ?l" "distinct ?r" and LR: "set ?l \<inter> set ?r = {}"
-      using "1.prems"(3) SPLR * by (metis card_distinct distinct_append distinct_card length_append set_append)+
-    moreover have "\<forall>p \<in> set ?l .dim p = d" "\<forall>p \<in> set ?r .dim p = d"
+    moreover have "distinct ?l" "distinct ?r" and 4: "set ?l \<inter> set ?r = {}"
+      using "1.prems"(3) SPLR 1 by (metis card_distinct distinct_append distinct_card length_append set_append)+
+    moreover have "\<forall>p \<in> set ?l .dim p = k" "\<forall>p \<in> set ?r .dim p = k"
       using "1.prems"(2) SPLR by simp_all
-    ultimately have "invar d (build' ?a' d ?l)" "invar d (build' ?a' d ?r)"
-      using "1.IH" A' ** by simp_all
+    ultimately have "invar k (build' ?a' k ?l)" "invar k (build' ?a' k ?r)"
+      using "1.IH" 0 2 by simp_all
     moreover have "\<forall>p \<in> set ?l. p ! a \<le> ?m" "\<forall>p \<in> set ?r. ?m \<le> p ! a"
       using partition_by_median_filter by (metis prod.collapse)+
-    moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+    moreover have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
       using False by simp
-    ultimately show ?thesis using "1.prems"(4) LR *** build'_set by auto
+    ultimately show ?thesis 
+      using "1.prems"(4) 3 4 build'_set by auto
   qed
 qed
 
 lemma build'_size:
   assumes "0 < length ps"
-  shows "size_kdt (build' a d ps) = length ps"
+  shows "size_kdt (build' a k ps) = length ps"
   using assms
 proof (induction ps arbitrary: a rule: length_induct)
   case (1 ps)
@@ -349,30 +347,24 @@ proof (induction ps arbitrary: a rule: length_induct)
   next
     case False
 
-    let ?a' = "(a + 1) mod d"
+    let ?a' = "(a + 1) mod k"
     let ?lmr = "partition_by_median a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have "size_kdt (build' ?a' d ?l) = length ?l" "size_kdt (build' ?a' d ?r) = length ?r" 
+    have "size_kdt (build' ?a' k ?l) = length ?l" "size_kdt (build' ?a' k ?r) = length ?r" 
       using False partition_by_median_length(4,5,6,7)[of ?l ?m ?r a ps] "1.IH" by force+
-    moreover have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+    moreover have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
       using False by simp
     ultimately show ?thesis
       using partition_by_median_length(1) by (smt prod.collapse size_kdt.simps(2))
   qed
 qed
 
-lemma AUX:
-  fixes r :: nat and l :: nat
-  assumes "r - l \<le> 1" "l \<le> r"
-  shows "l + 1 = r \<or> l = r"
-  using assms by linarith
-
 lemma build'_balanced:
   assumes "0 < length ps"
-  shows "balanced (build' a d ps)"
+  shows "balanced (build' a k ps)"
   using assms
 proof (induction ps arbitrary: a rule: length_induct)
   case (1 ps)
@@ -385,28 +377,28 @@ proof (induction ps arbitrary: a rule: length_induct)
   next
     case False
 
-    let ?a' = "(a + 1) mod d"
+    let ?a' = "(a + 1) mod k"
     let ?lmr = "partition_by_median a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have 2: "length ps = length ?l + length ?r" "length ?r - length ?l \<le> 1" "length ?l \<le> length ?r"
+    have 0: "length ps = length ?l + length ?r" "length ?r - length ?l \<le> 1" "length ?l \<le> length ?r"
       using partition_by_median_length(1,2,3) "1.prems" by (metis prod.collapse)+
-    hence 3: "length ?l + 1 = length ?r \<or> length ?l = length ?r"
-      using AUX by simp
-    moreover have 4: "length ?l < length ps" "length ?r < length ps"
-      using False 2(1,2,3) by auto
-    moreover have 5: "length ?l > 0" "length ?r > 0"
-      using "1.prems" "2"(1) 3 4 by linarith+
-    ultimately have B: "balanced (build' ?a' d ?l)" "balanced (build' ?a' d ?r)"
+    hence 1: "length ?l + 1 = length ?r \<or> length ?l = length ?r"
+      by linarith
+    moreover have 2: "length ?l < length ps" "length ?r < length ps"
+      using False 0 by auto
+    moreover have 3: "0 < length ?l" "0 < length ?r"
+      using "1.prems" 0 1 2 by linarith+
+    ultimately have 4: "balanced (build' ?a' k ?l)" "balanced (build' ?a' k ?r)"
       using "1.IH" by simp_all
-
-    have "build' a d ps = Node a ?m (build' ?a' d ?l) (build' ?a' d ?r)"
+    have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
       using False by simp
-    moreover have "size_kdt (build' ?a' d ?l) + 1 = size_kdt (build' ?a' d ?r) \<or> size_kdt (build' ?a' d ?l) = size_kdt (build' ?a' d ?r)"
-      using 3 5 build'_size by simp
-    ultimately show ?thesis using B balanced_Node_if_wbal2 by auto
+    moreover have "size_kdt (build' ?a' k ?l) + 1 = size_kdt (build' ?a' k ?r) \<or> size_kdt (build' ?a' k ?l) = size_kdt (build' ?a' k ?r)"
+      using 1 3 build'_size by simp
+    ultimately show ?thesis
+      using 4 balanced_Node_if_wbal2 by auto
   qed
 qed
 
@@ -427,7 +419,7 @@ qed
 
 lemma build'_complete:
   assumes "length ps = 2 ^ h"
-  shows "complete (build' a d ps)"
+  shows "complete (build' a k ps)"
   using assms complete_if_balanced_size_2powh
   by (simp add: build'_balanced build'_size)
 
@@ -442,7 +434,7 @@ theorem build_set:
   using build'_set build_def by simp
 
 theorem build_invar:
-  "0 < length ps \<Longrightarrow> \<forall>p \<in> set ps. dim p = d \<Longrightarrow> distinct ps \<Longrightarrow> 0 < d \<Longrightarrow> invar d (build ps)"
+  "0 < length ps \<Longrightarrow> \<forall>p \<in> set ps. dim p = k \<Longrightarrow> distinct ps \<Longrightarrow> 0 < k \<Longrightarrow> invar k (build ps)"
   using build'_invar build_def by simp
 
 theorem build_size:
