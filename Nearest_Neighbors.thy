@@ -415,7 +415,7 @@ qed
 text\<open>The main lemmas.\<close>
 
 lemma knn_length:
-  "length (k_nearest_neighbors' k ns p kdt) = min k (size kdt + length ns)"
+  "length (k_nearest_neighbors' k ns p kdt) = min k (size_kdt kdt + length ns)"
   by (induction kdt arbitrary: ns) (auto simp add: Let_def)
 
 lemma knn_length_gt_0:
@@ -655,26 +655,33 @@ text\<open>Wrapping up.\<close>
 definition k_nearest_neighbors :: "nat \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
   "k_nearest_neighbors k p kdt = k_nearest_neighbors' k [] p kdt"
 
-theorem k_nearest_neighbors_1:
-  assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
-  shows "length kns = min k (size kdt)"
-    and "swrtp p kns"
-    and "set kns \<subseteq> set_kdt kdt"
-    and "distinct kns"
-  using assms knn_length knn_sorted knn_set knn_distinct k_nearest_neighbors_def
-  apply auto
-  by fastforce
+theorem k_nearest_neighbors_length:
+  "length (k_nearest_neighbors k p kdt) = min k (size_kdt kdt)"
+  using knn_length k_nearest_neighbors_def by simp
 
-theorem k_nearest_neighbors_2:
+theorem k_nearest_neighbors_sorted:
+  "swrtp p (k_nearest_neighbors k p kdt)"
+  using knn_sorted k_nearest_neighbors_def by simp
+
+theorem k_nearest_neighbors_set:
+  "set (k_nearest_neighbors k p kdt) \<subseteq> set_kdt kdt"
+  using knn_set k_nearest_neighbors_def by fastforce
+
+theorem k_nearest_neighbors_distinct:
+  assumes "invar d kdt" "dim p = d"
+  shows "distinct (k_nearest_neighbors k p kdt)"
+  using assms knn_distinct k_nearest_neighbors_def by simp
+
+theorem k_nearest_neighbors:
   assumes "invar d kdt" "dim p = d" "k_nearest_neighbors k p kdt = kns"
   shows "\<forall>q \<in> (set_kdt kdt - set kns). \<forall>n \<in> set kns. sqed n p \<le> sqed q p"
 proof -
   have "k > 0 \<longrightarrow> (\<forall>q \<in> set_kdt kdt - set kns. sqed (last kns) p \<le> sqed q p)"
     using assms k_nearest_neighbors_def knn_sqed by auto
   hence "k > 0 \<longrightarrow> (\<forall>q \<in> set_kdt kdt - set kns. \<forall>n \<in> set kns. sqed n p \<le> sqed q p)"
-    by (smt assms k_nearest_neighbors_1(2) sorted_wrt_last_max)
+    by (smt assms k_nearest_neighbors_sorted sorted_wrt_last_max)
   thus "\<forall>q \<in> (set_kdt kdt - set kns). \<forall>n \<in> set kns. sqed n p \<le> sqed q p"
-    using assms k_nearest_neighbors_def k_nearest_neighbors_1(1) by (metis length_pos_if_in_set min_less_iff_conj)
+    using assms k_nearest_neighbors_def k_nearest_neighbors_length by (metis length_pos_if_in_set min_less_iff_conj)
 qed
 
 end

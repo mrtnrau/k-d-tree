@@ -106,8 +106,6 @@ text \<open>
 
   Given two arbitrary points p0 and p1 which only satisfy the dimensionality property,
   does the query function work?
-
-  Hide the is_bounding_box abstraction.
 \<close>
 
 text \<open>Auxiliary functions and the final query function:\<close>
