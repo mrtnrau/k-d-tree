@@ -101,7 +101,7 @@ lemma partition_length:
 
 
 text \<open>
-  Partitioning point balanced wrt the median at axis a.
+  Partitioning points balanced wrt the median at axis a.
 \<close>
 
 definition partition_by_median :: "axis \<Rightarrow> point list \<Rightarrow> point list * real * point list" where
@@ -213,6 +213,15 @@ lemmas partition_by_median_length =
 
 
 
+text \<open>
+  The build algorithm.
+
+  At each level splits the point into two lists depending on the median at the particular axis a.
+  The left list contains points with p!a <= median at axis a.
+  The right list contains points with median at axis a <= p!a.
+  The two lists differ in length by at most 1.
+\<close>
+
 function (sequential) build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarrow> kdt" where
   "build' a k [] = undefined"
 | "build' a k [p] = Leaf p" 
@@ -228,6 +237,13 @@ termination build'
   apply (auto)
   apply fastforce+
   done
+
+
+
+
+text \<open>
+  Setting up different build.simps for length_induct.
+\<close>
 
 lemma build'_simp_1:
   "ps = [p] \<Longrightarrow> build' a k ps = Leaf p"
@@ -251,6 +267,10 @@ declare build'.simps[simp del]
 
 
 
+
+text \<open>
+  The main lemmas.
+\<close>
 
 lemma build'_set:
   assumes "0 < length ps"
@@ -425,6 +445,10 @@ lemma build'_complete:
 
 
 
+
+text \<open>
+  Wrapping up with the final build function.
+\<close>
 
 definition build :: "point list \<Rightarrow> kdt" where
   "build ps = build' 0 (dim (hd ps)) ps"

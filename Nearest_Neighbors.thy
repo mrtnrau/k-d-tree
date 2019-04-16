@@ -295,13 +295,13 @@ fun m_nearest_neighbors' :: "nat \<Rightarrow> point list \<Rightarrow> point \<
 
 text\<open>Auxiliary lemmas about sorted_wrt for the base cases of the final theorem.\<close>
 
-definition swrtp :: "point \<Rightarrow> point list \<Rightarrow> bool" where
-  "swrtp p \<equiv> sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)"
+definition sqed_sorted :: "point \<Rightarrow> point list \<Rightarrow> bool" where
+  "sqed_sorted p \<equiv> sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)"
 
-definition insortp :: "point \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> point list" where
-  "insortp p \<equiv> insort_key (\<lambda>q. sqed q p)"
+definition sqed_insort :: "point \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> point list" where
+  "sqed_insort p \<equiv> insort_key (\<lambda>q. sqed q p)"
 
-declare insortp_def[simp] swrtp_def[simp]
+declare sqed_sorted_def[simp] sqed_insort_def[simp]
 
 lemma
   assumes "sorted_wrt f xs"
@@ -314,30 +314,30 @@ proof -
     using sorted_wrt_append by blast+
 qed
 
-lemma sorted_wrt_insort_key:
-  "swrtp p ms \<Longrightarrow> swrtp p (insortp p p' ms)"
+lemma sqed_sorted_insort:
+  "sqed_sorted p ms \<Longrightarrow> sqed_sorted p (sqed_insort p p' ms)"
   apply (induction ms)
   apply (auto)
   by (metis insert_iff le_cases set_insort_key)
 
-lemma sorted_wrt_insort_key_take:
-  assumes "swrtp p ms"
-  shows "swrtp p (take m (insortp p p' ms))"
+lemma sqed_sorted_take_insort:
+  assumes "sqed_sorted p ms"
+  shows "sqed_sorted p (take m (sqed_insort p p' ms))"
 proof -
-  have "swrtp p (insortp p p' ms)"
-    using assms sorted_wrt_insort_key by blast
+  have "sqed_sorted p (sqed_insort p p' ms)"
+    using assms sqed_sorted_insort by blast
   thus ?thesis 
     using sorted_wrt_take by auto
 qed
 
 lemma
-  assumes "swrtp p (xs @ [m] @ ys)"
-  shows sorted_wrt_prefix: "\<forall>x \<in> set xs. sqed x p \<le> sqed m p"
-  and sorted_wrt_suffix: "\<forall>y \<in> set ys. sqed m p \<le> sqed y p"
+  assumes "sqed_sorted p (xs @ [m] @ ys)"
+  shows sqed_sorted_prefix: "\<forall>x \<in> set xs. sqed x p \<le> sqed m p"
+  and sqed_sorted_suffix: "\<forall>y \<in> set ys. sqed m p \<le> sqed y p"
   using assms sorted_wrt_append by (simp add: sorted_wrt_append)+
 
-lemma sorted_wrt_last_max:
-  assumes "swrtp p ms"
+lemma sqed_sorted_last:
+  assumes "sqed_sorted p ms"
   shows "\<forall>n \<in> set ms. sqed n p \<le> sqed (last ms) p"
 proof (cases "ms = []")
   case True
@@ -346,14 +346,14 @@ next
   case False
   then obtain ms' m where [simp]:"ms = ms' @ [m]"
     using rev_exhaust by blast
-  hence "swrtp p (ms' @ [m])"
+  hence "sqed_sorted p (ms' @ [m])"
     using assms by blast
   thus ?thesis 
-    using sorted_wrt_prefix by simp
+    using sqed_sorted_prefix by simp
 qed
 
-lemma sorted_wrt_take_elim:
-  assumes "swrtp p ms"
+lemma sqed_sorted_take_mono:
+  assumes "sqed_sorted p ms"
   shows "\<forall>n \<in> set ms - set (take m ms). \<forall>n' \<in> set (take m ms). sqed n' p \<le> sqed n p"
 proof (cases "length ms \<le> m")
   case True
@@ -363,51 +363,51 @@ next
   hence "ms = (take m ms) @ [ms!m] @ (drop (m+1) ms)"
     using id_take_nth_drop not_less by auto
   then show ?thesis using assms 
-    sorted_wrt_prefix[of p "take m ms" "ms!m" "drop (m+1) ms"]
-    sorted_wrt_suffix[of p "take m ms" "ms!m" "drop (m+1) ms"]
+    sqed_sorted_prefix[of p "take m ms" "ms!m" "drop (m+1) ms"]
+    sqed_sorted_suffix[of p "take m ms" "ms!m" "drop (m+1) ms"]
     by (smt DiffD1 DiffD2 UnE append_Cons append_Nil set_ConsD set_append)
 qed
 
-lemma sorted_wrt_insort_key_take_elim:
-  assumes "swrtp p ms"
-  shows "\<forall>n \<in> set ms \<union> {p'} - set (take m (insortp p p' ms)). \<forall>n' \<in> set (take m (insortp p p' ms)). sqed n' p \<le> sqed n p"
+lemma sqed_sorted_take_insort_mono:
+  assumes "sqed_sorted p ms"
+  shows "\<forall>n \<in> set ms \<union> {p'} - set (take m (sqed_insort p p' ms)). \<forall>n' \<in> set (take m (sqed_insort p p' ms)). sqed n' p \<le> sqed n p"
 proof -
-  let ?ms' = "insortp p p' ms"
-  have "swrtp p ?ms'"
-    using assms sorted_wrt_insort_key by blast
+  let ?ms' = "sqed_insort p p' ms"
+  have "sqed_sorted p ?ms'"
+    using assms sqed_sorted_insort by blast
   hence "\<forall>n \<in> set ?ms' - set (take m ?ms'). \<forall>n' \<in> set (take m ?ms'). sqed n' p \<le> sqed n p"
-    using sorted_wrt_take_elim by blast
+    using sqed_sorted_take_mono by blast
   thus ?thesis 
     by (simp add: set_insort_key)
 qed
 
-lemma sorted_wrt_take_last_mono:
-  assumes "swrtp p ms" "m \<le> length ms" "0 < m"
+lemma sqed_sorted_last_take_mono:
+  assumes "sqed_sorted p ms" "m \<le> length ms" "0 < m"
   shows "sqed (last (take m ms)) p \<le> sqed (last ms) p"
   using assms by (induction ms arbitrary: m) (auto simp add: take_Cons')
 
-lemma sorted_wrt_insort_key_last_eq:
-  assumes "swrtp p ms" "insort_key (\<lambda>q. sqed q p) p' ms \<noteq> ms @ [p']"
-  shows "last (insortp p p' ms) = last ms"
+lemma sqed_sorted_last_insort_eq:
+  assumes "sqed_sorted p ms" "sqed_insort p p' ms \<noteq> ms @ [p']"
+  shows "last (sqed_insort p p' ms) = last ms"
   using assms by (induction ms) (auto)
 
-lemma sorted_wrt_insort_key_take_last_mono:
-  assumes "swrtp p ms" "m \<le> length ms" "0 < m"
-  shows "sqed (last (take m (insortp p p' ms))) p \<le> sqed (last ms) p"
+lemma sqed_sorted_last_take_insort_mono:
+  assumes "sqed_sorted p ms" "m \<le> length ms" "0 < m"
+  shows "sqed (last (take m (sqed_insort p p' ms))) p \<le> sqed (last ms) p"
 proof -
-  let ?ms' = "insortp p p' ms"
+  let ?ms' = "sqed_insort p p' ms"
 
   show "sqed (last (take m ?ms')) p \<le> sqed (last ms) p"
   proof (cases "?ms' = ms @ [p']")
     case True
     thus ?thesis
-      using assms sorted_wrt_take_last_mono by auto
+      using assms sqed_sorted_last_take_mono by auto
   next
     case False
     hence EQ: "last ?ms' = last ms"
-      using sorted_wrt_insort_key_last_eq assms by simp
+      using sqed_sorted_last_insort_eq assms by simp
     have "sqed (last (take m ?ms')) p \<le> sqed (last ?ms') p"
-      using assms sorted_wrt_take_last_mono sorted_wrt_insort_key by simp
+      using assms sqed_sorted_last_take_mono sqed_sorted_insort by simp
     thus ?thesis
       using EQ by simp
   qed
@@ -423,8 +423,8 @@ lemma mnn_length:
   by (induction kdt arbitrary: ms) (auto simp add: Let_def)
 
 lemma mnn_length_gt_0:
-  assumes "m < 0"
-  shows "length (m_nearest_neighbors' m ms p kdt) > 0"
+  assumes "0 < m"
+  shows "0 < length (m_nearest_neighbors' m ms p kdt)"
   using assms by (induction kdt arbitrary: ms) (auto simp add: Let_def)
 
 lemma mnn_length_gt_eq_m:
@@ -436,9 +436,9 @@ lemma mnn_length_gt_eq_m:
   by fastforce+
 
 lemma mnn_sorted:
-  assumes "swrtp p ms"
-  shows "swrtp p (m_nearest_neighbors' m ms p kdt)"
-  using assms sorted_wrt_insort_key_take
+  assumes "sqed_sorted p ms"
+  shows "sqed_sorted p (m_nearest_neighbors' m ms p kdt)"
+  using assms sqed_sorted_take_insort
   by (induction kdt arbitrary: ms) (auto simp add: Let_def)
 
 lemma mnn_set:
@@ -482,20 +482,20 @@ qed
 text\<open>Last auxiliary lemma and the main theorem.\<close>
 
 lemma mnn_le_last_ms:
-  assumes "invar k kdt" "dim p = k" "swrtp p ms" "m \<le> length ms" "0 < m"
+  assumes "invar k kdt" "dim p = k" "sqed_sorted p ms" "m \<le> length ms" "0 < m"
   shows "sqed (last (m_nearest_neighbors' m ms p kdt)) p \<le> sqed (last ms) p"
   using assms
 proof (induction kdt arbitrary: ms)
   case (Leaf p')
 
-  let ?ms' = "take m (insortp p p' ms)"
+  let ?ms' = "take m (sqed_insort p p' ms)"
 
-  have "swrtp p ?ms'"
-    using Leaf.prems(3) sorted_wrt_insort_key_take by simp
+  have "sqed_sorted p ?ms'"
+    using Leaf.prems(3) sqed_sorted_take_insort by simp
   hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ?ms') p"
-    using sorted_wrt_last_max by simp
+    using sqed_sorted_last by blast
   hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ms) p"
-    using Leaf.prems(3,4,5) sorted_wrt_insort_key_take_last_mono by smt
+    using Leaf.prems(3,4,5)  by (smt sqed_sorted_last_take_insort_mono)
   thus ?case
     using Leaf.prems(5) by simp
 next
@@ -524,13 +524,13 @@ qed
 
 theorem mnn_sqed:
   assumes "invar k kdt" "dim p = k"
-  assumes "swrtp p ms" "set ms \<inter> set_kdt kdt = {}" "distinct ms" "0 < m"
+  assumes "sqed_sorted p ms" "set ms \<inter> set_kdt kdt = {}" "distinct ms" "0 < m"
   shows "\<forall>q \<in> set_kdt kdt \<union> set ms - set (m_nearest_neighbors' m ms p kdt). sqed (last (m_nearest_neighbors' m ms p kdt)) p \<le> sqed q p"
   using assms
 proof (induction kdt arbitrary: ms)
   case (Leaf p')
   thus ?case
-    using sorted_wrt_insort_key_take_elim by simp
+    using sqed_sorted_take_insort_mono by simp
 next
   case (Node a s l r)
 
@@ -542,9 +542,9 @@ next
   have IHR: "\<forall>q \<in> set_kdt r \<union> set ms - set ?cr. sqed (last ?cr) p \<le> sqed q p"
     using Node.IH(2) Node.prems invar_r invar_set by blast
 
-  have SORTED_L: "swrtp p ?cl"
+  have SORTED_L: "sqed_sorted p ?cl"
     using mnn_sorted Node.prems(3) by blast
-  have SORTED_R: "swrtp p ?cr"
+  have SORTED_R: "sqed_sorted p ?cr"
     using mnn_sorted Node.prems(3) by blast
 
   have DISTINCT_L: "distinct ?cl"
@@ -678,7 +678,7 @@ theorem m_nearest_neighbors_length:
   using mnn_length m_nearest_neighbors_def by simp
 
 theorem m_nearest_neighbors_sorted:
-  "swrtp p (m_nearest_neighbors m p kdt)"
+  "sqed_sorted p (m_nearest_neighbors m p kdt)"
   using mnn_sorted m_nearest_neighbors_def by simp
 
 theorem m_nearest_neighbors_set:
@@ -693,13 +693,20 @@ theorem m_nearest_neighbors_distinct:
 theorem m_nearest_neighbors:
   assumes "invar k kdt" "dim p = k" "m_nearest_neighbors m p kdt = mns"
   shows "\<forall>q \<in> (set_kdt kdt - set mns). \<forall>n \<in> set mns. sqed n p \<le> sqed q p"
-proof -
-  have "0 < m \<longrightarrow> (\<forall>q \<in> set_kdt kdt - set mns. sqed (last mns) p \<le> sqed q p)"
+proof (cases "0 < m")
+  case True
+  hence "\<forall>q \<in> set_kdt kdt - set mns. sqed (last mns) p \<le> sqed q p"
     using assms m_nearest_neighbors_def mnn_sqed by auto
-  hence "0 < m \<longrightarrow> (\<forall>q \<in> set_kdt kdt - set mns. \<forall>n \<in> set mns. sqed n p \<le> sqed q p)"
-    by (smt assms m_nearest_neighbors_sorted sorted_wrt_last_max)
-  thus "\<forall>q \<in> (set_kdt kdt - set mns). \<forall>n \<in> set mns. sqed n p \<le> sqed q p"
-    using assms m_nearest_neighbors_def m_nearest_neighbors_length by (metis length_pos_if_in_set min_less_iff_conj)
+  hence "\<forall>q \<in> set_kdt kdt - set mns. \<forall>n \<in> set mns. sqed n p \<le> sqed q p"
+    by (smt assms m_nearest_neighbors_sorted sqed_sorted_last)
+  thus ?thesis
+    using m_nearest_neighbors_def by blast
+next
+  case False
+  hence "m = 0"
+    by simp
+  thus ?thesis
+    using assms(3) m_nearest_neighbors_def mnn_length_gt_eq_m by fastforce
 qed
 
 end
