@@ -3,9 +3,9 @@ theory Nearest_Neighbors
 begin
 
 text \<open>
-  Verifying nearest neighbor search on the k-d tree.
+  Verifying m nearest neighbor search on the k-d tree.
 
-  Given k-d tree and a point p, which might not be in the tree, find the point p' which is
+  Given k-d tree and a point p, which might not be in the tree, find the points ms which are
   closest to p by some metric.
 
   The chosen metric is the euclidean distance between two points.
@@ -76,9 +76,6 @@ lemma sqed_com:
 
 text\<open>
   The m nearest neighbor algorithm.
-
-  Given k-d tree and a point p, which might not be in the tree, find the m closest points ms
-  to p by the squared euclidean distance.
 
   The paper uses a priority queue for the m nearest neighbor candidates.
   I am using a sorted list for simplicity instead.
@@ -281,7 +278,6 @@ lemma sqed_sorted_last_take_insort_mono:
   shows "sqed (last (take m (sqed_insort p p' ms))) p \<le> sqed (last ms) p"
 proof -
   let ?ms' = "sqed_insort p p' ms"
-
   show "sqed (last (take m ?ms')) p \<le> sqed (last ms) p"
   proof (cases "?ms' = ms @ [p']")
     case True
