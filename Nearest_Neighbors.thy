@@ -74,40 +74,37 @@ lemma sqed_com:
 
 
 
-text\<open>The nearest neighbor algorithm.\<close>
+text\<open>
+  The m nearest neighbor algorithm.
 
-fun nearest_neighbor :: "point \<Rightarrow> kdt \<Rightarrow> point" where
-  "nearest_neighbor _ (Leaf p) = p"
-| "nearest_neighbor p (Node a s l r) = (
+  Given k-d tree and a point p, which might not be in the tree, find the m closest points ms
+  to p by the squared euclidean distance.
+
+  The paper uses a priority queue for the m nearest neighbor candidates.
+  I am using a sorted list for simplicity instead.
+\<close>
+
+fun m_nearest_neighbors' :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
+  "m_nearest_neighbors' m ns p (Leaf p') = (
+    take m (insort_key (\<lambda>q. sqed q p) p' ns)
+  )"
+| "m_nearest_neighbors' m ns p (Node a s l r) = (
     if p!a \<le> s then
-      let candidate = nearest_neighbor p l in
-      if sqed p candidate \<le> sqed' s (p!a) then
-        candidate
+      let candidates = m_nearest_neighbors' m ns p l in
+      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+        candidates
       else
-        let candidate' = nearest_neighbor p r in
-        min_by_sqed candidate candidate' p
+        m_nearest_neighbors' m candidates p r
     else
-      let candidate = nearest_neighbor p r in
-      if sqed p candidate \<le> sqed' s (p!a) then
-        candidate
+      let candidates = m_nearest_neighbors' m ns p r in
+      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
+        candidates
       else
-        let candidate' = nearest_neighbor p l in
-        min_by_sqed candidate candidate' p
+        m_nearest_neighbors' m candidates p l
   )"
 
 
 
-
-text \<open>First part of main theorem.\<close>
-
-lemma nearest_neighbor_in_kdt:
-  "nearest_neighbor p kdt \<in> set_kdt kdt"
-  by (induction kdt) (auto simp add: Let_def min_by_sqed_def)
-
-
-
-
-text \<open>Second part of main theorem.\<close>
 
 text \<open>Auxiliary lemmas.\<close>
 
@@ -194,112 +191,7 @@ qed
 
 
 
-text \<open>The main theorem.\<close>
-
-lemma nearest_neighbor_minimal:
-  assumes "invar k kdt" "dim p = k"
-  shows "\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor p kdt) p \<le> sqed q p"
-  using assms
-proof (induction kdt)
-  case (Leaf p)
-  thus ?case
-    by simp
-next
-  case (Node a s l r)
-
-  let ?cl = "nearest_neighbor p l"
-  let ?cr = "nearest_neighbor p r"
-
-  have IHL: "\<forall>q \<in> set_kdt l. sqed ?cl p \<le> sqed q p"
-    using Node.IH(1) Node.prems(1,2) invar_axis_lt_d by auto
-  have IHR: "\<forall>q \<in> set_kdt r. sqed ?cr p \<le> sqed q p"
-    using Node.IH(2) Node.prems(1,2) invar_axis_lt_d by auto
-
-  consider (A) "p!a \<le> s \<and> sqed p ?cl \<le> sqed' s (p!a)"
-         | (B) "p!a \<le> s \<and> \<not>sqed p ?cl \<le> sqed' s (p!a)"
-         | (C) "s < p!a \<and> sqed p ?cr \<le> sqed' s (p!a)"
-         | (D) "s < p!a \<and> \<not>sqed p ?cr \<le> sqed' s (p!a)"
-    by argo
-  thus ?case
-  proof cases
-    case A
-    hence "\<forall>q \<in> set_kdt r. sqed p ?cl \<le> sqed p q"
-      using Node.prems(1,2) cutoff_r invar_axis_lt_d invar_l nearest_neighbor_in_kdt by blast
-    thus ?thesis 
-      using A Node.prems IHL by (auto simp add: sqed_com)
-  next
-    case B
-    thus ?thesis 
-      using Node.prems IHL IHR by (auto simp add: min_by_sqed_def Let_def)
-  next
-    case C
-    hence "\<forall>q \<in> set_kdt l. sqed p ?cr \<le> sqed p q"
-      using Node.prems(1,2) cutoff_l invar_r invar_axis_lt_d nearest_neighbor_in_kdt by smt
-    thus ?thesis 
-      using C Node.prems IHR by (auto simp add: sqed_com)
-  next
-    case D
-    thus ?thesis 
-      using Node.prems IHL IHR by (auto simp add: min_by_sqed_def Let_def)
-  qed
-qed
-
-theorem nearest_neighbor:
-  assumes "invar k kdt" "dim p = k"
-  shows "(\<forall>q \<in> set_kdt kdt. sqed (nearest_neighbor p kdt) p \<le> sqed q p) \<and> nearest_neighbor p kdt \<in> set_kdt kdt"
-  using assms nearest_neighbor_in_kdt nearest_neighbor_minimal invar_axis_lt_d by simp
-
-corollary
-  assumes "invar k kdt" "p \<in> set_kdt kdt"
-  shows "nearest_neighbor p kdt = p"
-  using assms by (smt invar_dim nearest_neighbor sqed_eq_0 sqed_eq_0_rev sqed_ge_0)
-
-
-
-
-text \<open>
-  Now generalize the nearest neighbor algorithm to a m nearest neighbor search.  
-
-  Given k-d tree and a point p, which might not be in the tree, find the m closest points ms
-  to p by the squared euclidean distance.
-\<close>
-
-text\<open>
-  The m nearest neighbor algorithm.
-
-  The paper uses a priority queue for the m nearest neighbor candidates.
-  I am using a sorted list for simplicity instead.
-\<close>
-
-fun m_nearest_neighbors' :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
-  "m_nearest_neighbors' m ns p (Leaf p') = (
-    take m (insort_key (\<lambda>q. sqed q p) p' ns)
-  )"
-| "m_nearest_neighbors' m ns p (Node a s l r) = (
-    if p!a \<le> s then
-      let candidates = m_nearest_neighbors' m ns p l in
-      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
-        candidates
-      else
-        m_nearest_neighbors' m candidates p r
-    else
-      let candidates = m_nearest_neighbors' m ns p r in
-      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
-        candidates
-      else
-        m_nearest_neighbors' m candidates p l
-  )"
-
-
-
-
 text\<open>Auxiliary lemmas about sorted_wrt for the base cases of the final theorem.\<close>
-
-
-lemma
- "(\<And>a b. P (f a b)) \<Longrightarrow> P b \<Longrightarrow> P (fold f as b)"
-  by (simp add: fold_invariant)
-
 
 definition sqed_sorted :: "point \<Rightarrow> point list \<Rightarrow> bool" where
   "sqed_sorted p \<equiv> sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)"
@@ -336,42 +228,25 @@ proof -
     using sorted_wrt_take by auto
 qed
 
-lemma
-  assumes "sqed_sorted p (xs @ [m] @ ys)"
-  shows sqed_sorted_prefix: "\<forall>x \<in> set xs. sqed x p \<le> sqed m p"
-  and sqed_sorted_suffix: "\<forall>y \<in> set ys. sqed m p \<le> sqed y p"
-  using assms sorted_wrt_append by (simp add: sorted_wrt_append)+
+lemma sqed_sorted_take_drop:
+  assumes "sqed_sorted p ps"
+  shows "\<forall>p\<^sub>0 \<in> set (take n ps). \<forall>p\<^sub>1 \<in> set (drop n ps). sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p"
+  using assms sorted_wrt_append[of _ "take n ps" "drop n ps"] by simp
 
 lemma sqed_sorted_last:
-  assumes "sqed_sorted p ms"
-  shows "\<forall>n \<in> set ms. sqed n p \<le> sqed (last ms) p"
-proof (cases "ms = []")
+  assumes "sqed_sorted p ps"
+  shows "\<forall>n \<in> set ps. sqed n p \<le> sqed (last ps) p"
+proof (cases "ps = []")
   case True
   thus ?thesis by simp
 next
   case False
-  then obtain ms' m where [simp]:"ms = ms' @ [m]"
+  then obtain ps' p' where [simp]:"ps = ps' @ [p']"
     using rev_exhaust by blast
-  hence "sqed_sorted p (ms' @ [m])"
+  hence "sqed_sorted p (ps' @ [p'])"
     using assms by blast
-  thus ?thesis 
-    using sqed_sorted_prefix by simp
-qed
-
-lemma sqed_sorted_take_mono:
-  assumes "sqed_sorted p ms"
-  shows "\<forall>n \<in> set ms - set (take m ms). \<forall>n' \<in> set (take m ms). sqed n' p \<le> sqed n p"
-proof (cases "length ms \<le> m")
-  case True
-  thus ?thesis by simp
-next
-  case False
-  hence "ms = (take m ms) @ [ms!m] @ (drop (m+1) ms)"
-    using id_take_nth_drop not_less by auto
-  then show ?thesis using assms 
-    sqed_sorted_prefix[of p "take m ms" "ms!m" "drop (m+1) ms"]
-    sqed_sorted_suffix[of p "take m ms" "ms!m" "drop (m+1) ms"]
-    by (smt DiffD1 DiffD2 UnE append_Cons append_Nil set_ConsD set_append)
+  thus ?thesis
+    using sorted_wrt_append[of _ ps' "[p']"] by simp
 qed
 
 lemma sqed_sorted_take_insort_mono:
@@ -379,12 +254,16 @@ lemma sqed_sorted_take_insort_mono:
   shows "\<forall>n \<in> set ms \<union> {p'} - set (take m (sqed_insort p p' ms)). \<forall>n' \<in> set (take m (sqed_insort p p' ms)). sqed n' p \<le> sqed n p"
 proof -
   let ?ms' = "sqed_insort p p' ms"
-  have "sqed_sorted p ?ms'"
-    using assms sqed_sorted_insort by blast
-  hence "\<forall>n \<in> set ?ms' - set (take m ?ms'). \<forall>n' \<in> set (take m ?ms'). sqed n' p \<le> sqed n p"
-    using sqed_sorted_take_mono by blast
-  thus ?thesis 
+  have "set ms \<union> {p'} = set ?ms'"
     by (simp add: set_insort_key)
+  moreover have "set ?ms' = set (take m ?ms') \<union> set (drop m ?ms')"
+    using append_take_drop_id set_append by metis
+  ultimately have "set ms \<union> {p'} - set (take m ?ms') \<subseteq> set (drop m ?ms')"
+    by blast
+  moreover have "sqed_sorted p ?ms'"
+    using assms sqed_sorted_insort by blast
+  ultimately show ?thesis
+    using sqed_sorted_take_drop by blast
 qed
 
 lemma sqed_sorted_last_take_mono:
