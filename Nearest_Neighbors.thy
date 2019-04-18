@@ -295,6 +295,12 @@ fun m_nearest_neighbors' :: "nat \<Rightarrow> point list \<Rightarrow> point \<
 
 text\<open>Auxiliary lemmas about sorted_wrt for the base cases of the final theorem.\<close>
 
+
+lemma
+ "(\<And>a b. P (f a b)) \<Longrightarrow> P b \<Longrightarrow> P (fold f as b)"
+  by (simp add: fold_invariant)
+
+
 definition sqed_sorted :: "point \<Rightarrow> point list \<Rightarrow> bool" where
   "sqed_sorted p \<equiv> sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)"
 
