@@ -9,27 +9,32 @@ text \<open>
   Widest spread axis of a list of points.
 \<close>
 
-definition spread :: "axis \<Rightarrow> point set \<Rightarrow> real" where
-  "spread a ps = (
+definition spread_set :: "axis \<Rightarrow> point set \<Rightarrow> real" where
+  "spread_set a ps = (
     let as = (\<lambda>p. p!a) ` ps in
     Max as - Min as
   )"
 
+definition spread :: "axis \<Rightarrow> point list \<Rightarrow> real" where
+  "spread a ps = (
+    let as = map (\<lambda>p. p!a) ps in
+    fold max as (hd ps !a) - fold min as (hd ps!a)
+  )"
+
 definition is_widest_spread :: "axis \<Rightarrow> dimension \<Rightarrow> point set \<Rightarrow> bool" where
-  "is_widest_spread a k ps = (\<forall>a' < k. spread a' ps \<le> spread a ps)"
+  "is_widest_spread a k ps = (\<forall>a' < k. spread_set a' ps \<le> spread_set a ps)"
 
 fun widest_spread' :: "axis \<Rightarrow> point list \<Rightarrow> axis * real" where
-  "widest_spread' 0 ps = (0, spread 0 (set ps))"
+  "widest_spread' 0 ps = (0, spread 0 ps)"
 | "widest_spread' a ps = (
     let (a', s') = widest_spread' (a - 1) ps in
-    let s = spread a (set ps) in
+    let s = spread a ps in
     if s \<le> s' then (a', s') else (a, s)
   )"
 
-fun widest_spread :: "point list \<Rightarrow> axis" where
-  "widest_spread [] = undefined"
-| "widest_spread (p # ps) = (
-    let (a, _) = widest_spread' (dim p - 1) (p # ps) in
+definition widest_spread :: "point list \<Rightarrow> axis" where
+  "widest_spread ps = (
+    let (a, _) = widest_spread' (dim (hd ps) - 1) ps in
     a
   )"
 
@@ -37,20 +42,30 @@ fun widest_spread_invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" wher
   "widest_spread_invar _ (Leaf _) \<longleftrightarrow> True"
 | "widest_spread_invar k (Node a s l r) \<longleftrightarrow> is_widest_spread a k (set_kdt l \<union> set_kdt r) \<and> widest_spread_invar k l \<and> widest_spread_invar k r"
 
+lemma spread_is_spread_set:
+  "ps \<noteq> [] \<Longrightarrow> spread_set a (set ps) = spread a ps"
+  using Max.set_eq_fold[of "hd ps !a" _] Min.set_eq_fold[of "hd ps !a"]
+  apply (auto simp add: Let_def spread_def spread_set_def)
+  using set_map by (smt insert_image list.set_sel(1))
+
 lemma widest_spread'_is_spread:
-  "(ws, s) = widest_spread' a ps \<Longrightarrow> s = spread ws (set ps)"
+  "(ws, s) = widest_spread' a ps \<Longrightarrow> s = spread ws ps"
   by (induction a) (auto simp add: Let_def split: prod.splits if_splits)
 
 lemma is_widest_spread_k_le_ws:
-  "is_widest_spread ws k ps \<Longrightarrow> spread k ps \<le> spread ws ps \<Longrightarrow> is_widest_spread ws (k+1) ps"
+  "is_widest_spread ws k ps \<Longrightarrow> spread_set k ps \<le> spread_set ws ps \<Longrightarrow> is_widest_spread ws (k+1) ps"
   using is_widest_spread_def less_Suc_eq by auto
 
 lemma is_widest_spread_k_gt_ws:
-  "is_widest_spread ws k ps \<Longrightarrow> \<not> (spread k ps \<le> spread ws ps) \<Longrightarrow> is_widest_spread k (k+1) ps"
+  "is_widest_spread ws k ps \<Longrightarrow> \<not> (spread_set k ps \<le> spread_set ws ps) \<Longrightarrow> is_widest_spread k (k+1) ps"
   using is_widest_spread_def less_Suc_eq by auto
 
+lemma widest_spread'_le_a:
+  "ps \<noteq> [] \<Longrightarrow> (ws, s) = widest_spread' a ps \<Longrightarrow> ws \<le> a"
+  by (induction a arbitrary: ws s) (auto simp add: Let_def le_Suc_eq split: prod.splits if_splits)
+
 lemma widest_spread'_is_widest_spread:
-  "(ws, s) = widest_spread' a ps \<Longrightarrow> is_widest_spread ws (a+1) (set ps)"
+  "ps \<noteq> [] \<Longrightarrow> (ws, s) = widest_spread' a ps \<Longrightarrow> is_widest_spread ws (a+1) (set ps)"
 proof (induction a arbitrary: ws s)
   case 0
   thus ?case
@@ -60,29 +75,38 @@ next
   then obtain ws' s' where *: "(ws', s') = widest_spread' a ps"
     by (metis surj_pair)
   hence "is_widest_spread ws' (Suc a) (set ps)"
-    using Suc.IH by simp
+    using Suc.IH Suc.prems(1) by simp
   then show ?case 
-    using Suc.prems * widest_spread'_is_spread is_widest_spread_k_le_ws[of ws' "Suc a" "set ps"] is_widest_spread_k_gt_ws[of ws' "Suc a" "set ps"]
+    using Suc.prems * spread_is_spread_set widest_spread'_is_spread 
+    is_widest_spread_k_le_ws[of ws' "Suc a" "set ps"] is_widest_spread_k_gt_ws[of ws' "Suc a" "set ps"]
     by (auto simp add: Let_def split: prod.splits if_splits)
 qed
 
+lemma widest_spread_lt_k:
+  "\<forall>p \<in> set ps. dim p = k \<Longrightarrow> 0 < k \<Longrightarrow> ps \<noteq> [] \<Longrightarrow> widest_spread ps < k"
+  using widest_spread_def widest_spread'_le_a
+  apply (auto split: prod.splits)
+  by (metis Suc_le_lessD Suc_le_mono Suc_pred)
+
 lemma widest_spread_is_widest_spread:
-  assumes "ps \<noteq> []" "\<forall>p \<in> set ps. dim p = k" "0 < k"
+  assumes "ps \<noteq> []" "\<forall>p \<in> set ps. dim p = k"
   shows "is_widest_spread (widest_spread ps) k (set ps)"
-proof (cases ps)
-  case Nil
-  thus ?thesis
-    using assms(1) by simp
+proof (cases k)
+  case 0
+  then show ?thesis
+    using is_widest_spread_def by simp
 next
-  case (Cons p ps)
-  obtain ws s where *: "(ws, s) = widest_spread' (dim p - 1) (p # ps)"
+  case (Suc n)
+  obtain ws s where *: "(ws, s) = widest_spread' (dim (hd ps) - 1) ps"
     using prod.collapse by blast
-  moreover have "dim p = k"
-    using Cons assms(2) by simp
-  ultimately have "is_widest_spread ws (k - 1 + 1) (set (p # ps))"
-    using widest_spread'_is_widest_spread by blast
+  moreover have "dim (hd ps) = k"
+    using assms(1,2) by simp
+  ultimately have "is_widest_spread ws (k - 1 + 1) (set ps)"
+    using widest_spread'_is_widest_spread assms(1) by simp 
+  hence "is_widest_spread ws k (set ps)"
+    using Suc by simp
   thus ?thesis
-    using Cons * assms(3) by (auto split: prod.split)
+    using * widest_spread_def by (auto split: prod.split)
 qed
 
 
@@ -299,24 +323,25 @@ lemmas partition_by_median_length =
 text \<open>
   The build algorithm.
 
-  At each level splits the point into two lists depending on the median at the particular axis a.
+  At each level splits the point into two lists depending on the median at the axis a which
+  has the widest spread between the min and max of all values.
   The left list contains points with p!a <= median at axis a.
   The right list contains points with median at axis a <= p!a.
   The two lists differ in length by at most 1.
 \<close>
 
-function (sequential) build' :: "axis \<Rightarrow> dimension \<Rightarrow> point list \<Rightarrow> kdt" where
-  "build' a k [] = undefined" (* We never hit this case recursively. Only if the original input is really [].*)
-| "build' a k [p] = Leaf p" 
-| "build' a k ps = (
-    let a' = (a + 1) mod k in
+function (sequential) build :: "dimension \<Rightarrow> point list \<Rightarrow> kdt" where
+  "build _ [] = undefined" (* We never hit this case recursively. Only if the original input is really [].*)
+| "build k [p] = Leaf p" 
+| "build k ps = (
+    let a = widest_spread ps in
     let (l, m, r) = partition_by_median a ps in
-    Node a m (build' a' k l) (build' a' k r)
+    Node a m (build k l) (build k r)
   )"
   by pat_completeness auto
-termination build'
+termination build
   using partition_by_median_length(4,5)
-  apply (relation "measure (\<lambda>(_, _, ps). length ps)")
+  apply (relation "measure (\<lambda>( _, ps). length ps)")
   apply (auto)
   apply fastforce+
   done
@@ -328,90 +353,90 @@ text \<open>
   Setting up different build.simps for length_induct.
 \<close>
 
-lemma build'_simp_1:
-  "ps = [p] \<Longrightarrow> build' a k ps = Leaf p"
+lemma build_simp_1:
+  "ps = [p] \<Longrightarrow> build k ps = Leaf p"
   by simp
 
-lemma build'_simp_2:
-  "ps = p\<^sub>0 # p\<^sub>1 # ps' \<Longrightarrow> a' = (a + 1) mod k \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build' a k ps = Node a m (build' a' k l) (build' a' k r)"
-  using build'.simps(3) by (auto simp add: Let_def split: prod.splits)
+lemma build_simp_2:
+  "ps = p\<^sub>0 # p\<^sub>1 # ps' \<Longrightarrow> a = widest_spread ps \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build k ps = Node a m (build k l) (build k r)"
+  using build.simps(3) by (auto simp add: Let_def split: prod.splits)
 
 lemma length_ps_gt_1:
   "1 < length ps \<Longrightarrow> \<exists>p\<^sub>0 p\<^sub>1 ps'. ps = p\<^sub>0 # p\<^sub>1 # ps'"
   by (induction ps) (auto simp add: neq_Nil_conv)
 
-lemma build'_simp_3:
-  "1 < length ps \<Longrightarrow> a' = (a + 1) mod k \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build' a k ps = Node a m (build' a' k l) (build' a' k r)"
-  using build'_simp_2 length_ps_gt_1 by fast
+lemma build_simp_3:
+  "1 < length ps \<Longrightarrow> a = widest_spread ps \<Longrightarrow> (l, m, r) = partition_by_median a ps \<Longrightarrow> build k ps = Node a m (build k l) (build k r)"
+  using build_simp_2 length_ps_gt_1 by fast
 
-lemmas build'_simps[simp] = build'_simp_1 build'_simp_3
+lemmas build_simps[simp] = build_simp_1 build_simp_3
 
-declare build'.simps[simp del]
+declare build.simps[simp del]
 
 
 
 
 text \<open>
-  The main lemmas.
+  The main theorems.
 \<close>
 
-lemma build'_set:
+theorem build_set:
   assumes "0 < length ps"
-  shows "set ps = set_kdt (build' a k ps)"
+  shows "set ps = set_kdt (build k ps)"
   using assms
-proof (induction ps arbitrary: a rule: length_induct)
+proof (induction ps rule: length_induct)
   case (1 ps)
   then show ?case
   proof (cases "length ps \<le> 1")
     case True
     then obtain p where "ps = [p]"
       using "1.prems" by (cases ps) auto
-    thus ?thesis by simp
+    thus ?thesis
+      by simp
   next
     case False
 
-    let ?a' = "(a + 1) mod k"
-    let ?lmr = "partition_by_median a ps"
+    let ?a = "widest_spread ps"
+    let ?lmr = "partition_by_median ?a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have "set ?l = set_kdt (build' ?a' k ?l)" "set ?r = set_kdt (build' ?a' k ?r)" 
-      using False partition_by_median_length(4,5,6,7)[of ?l ?m ?r a ps] "1.IH" by force+
+    have "set ?l = set_kdt (build k ?l)" "set ?r = set_kdt (build k ?r)" 
+      using False partition_by_median_length(4,5,6,7)[of ?l ?m ?r ?a ps] "1.IH" by force+
     moreover have "set ps = set ?l \<union> set ?r"
       using partition_by_median_set by (metis prod.collapse)
-    moreover have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
+    moreover have "build k ps = Node ?a ?m (build k ?l) (build k ?r)"
       using False by simp
     ultimately show ?thesis
       by auto
   qed
 qed
 
-lemma build'_invar:
-  assumes "0 < length ps" "\<forall>p \<in> set ps. dim p = k" "distinct ps" "a < k"
-  shows "invar k (build' a k ps)"
+theorem build_invar:
+  assumes "0 < length ps" "\<forall>p \<in> set ps. dim p = k" "distinct ps" "0 < k"
+  shows "invar k (build k ps)"
   using assms
-proof (induction ps arbitrary: a rule: length_induct)
+proof (induction ps rule: length_induct)
   case (1 ps)
   then show ?case
   proof (cases "length ps \<le> 1")
     case True
     then obtain p where P: "ps = [p]"
-      using "1.prems" by (cases ps) auto
+      using "1.prems"(1) by (cases ps) auto
     hence "dim p = k"
       using "1.prems"(2) by simp
-    thus ?thesis using P by simp
+    thus ?thesis
+      using P by simp
   next
     case False
 
-    let ?a' = "(a + 1) mod k"
-    let ?lmr = "partition_by_median a ps"
+    let ?a = "widest_spread ps"
+    let ?lmr = "partition_by_median ?a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have 0: "?a' < k"
-      using "1.prems"(4) by auto
     have 1: "length ps = length ?l + length ?r"
       using partition_by_median_length by (metis prod.collapse)+
     hence 2: "length ?l < length ps" "length ?r < length ps"
@@ -424,22 +449,24 @@ proof (induction ps arbitrary: a rule: length_induct)
       using "1.prems"(3) SPLR 1 by (metis card_distinct distinct_append distinct_card length_append set_append)+
     moreover have "\<forall>p \<in> set ?l .dim p = k" "\<forall>p \<in> set ?r .dim p = k"
       using "1.prems"(2) SPLR by simp_all
-    ultimately have "invar k (build' ?a' k ?l)" "invar k (build' ?a' k ?r)"
-      using "1.IH" 0 2 by simp_all
-    moreover have "\<forall>p \<in> set ?l. p ! a \<le> ?m" "\<forall>p \<in> set ?r. ?m \<le> p ! a"
+    ultimately have "invar k (build k ?l)" "invar k (build k ?r)"
+      using "1.IH" 2 by (simp_all add: assms(4))
+    moreover have "\<forall>p \<in> set ?l. p ! ?a \<le> ?m" "\<forall>p \<in> set ?r. ?m \<le> p ! ?a"
       using partition_by_median_filter by (metis prod.collapse)+
-    moreover have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
+    moreover have "build k ps = Node ?a ?m (build k ?l) (build k ?r)"
       using False by simp
+    moreover have "?a < k"
+      using "1.prems"(1,2,4) widest_spread_lt_k by auto
     ultimately show ?thesis 
-      using "1.prems"(4) 3 4 build'_set by auto
+      using 3 4 build_set by auto
   qed
 qed
 
-lemma build'_size:
-  assumes "0 < length ps"
-  shows "size_kdt (build' a k ps) = length ps"
+theorem build_widest_spread:
+  assumes "0 < length ps" "\<forall>p \<in> set ps. dim p = k"
+  shows "widest_spread_invar k (build k ps)"
   using assms
-proof (induction ps arbitrary: a rule: length_induct)
+proof (induction ps rule: length_induct)
   case (1 ps)
   then show ?case
   proof (cases "length ps \<le> 1")
@@ -450,38 +477,81 @@ proof (induction ps arbitrary: a rule: length_induct)
   next
     case False
 
-    let ?a' = "(a + 1) mod k"
-    let ?lmr = "partition_by_median a ps"
+    let ?a = "widest_spread ps"
+    let ?lmr = "partition_by_median ?a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
 
-    have "size_kdt (build' ?a' k ?l) = length ?l" "size_kdt (build' ?a' k ?r) = length ?r" 
-      using False partition_by_median_length(4,5,6,7)[of ?l ?m ?r a ps] "1.IH" by force+
-    moreover have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
+    have 1: "length ps = length ?l + length ?r"
+      using partition_by_median_length by (metis prod.collapse)+
+    hence 2: "length ?l < length ps" "length ?r < length ps"
+      using False partition_by_median_length(4,5) not_le_imp_less "1.prems" by (smt prod.collapse)+
+    hence 3: "0 < length ?l" "0 < length ?r"
+      using 1 False partition_by_median_length(6,7) by simp_all
+    moreover have SPLR: "set ps = set ?l \<union> set ?r"
+      using partition_by_median_set by (metis prod.collapse)
+    moreover have "\<forall>p \<in> set ?l .dim p = k" "\<forall>p \<in> set ?r .dim p = k"
+      using "1.prems"(2) SPLR by simp_all
+    ultimately have "widest_spread_invar k (build k ?l)" "widest_spread_invar k (build k ?r)"
+      using "1.IH" 2 by simp_all
+    moreover have "is_widest_spread ?a k (set_kdt (build k ?l) \<union> set_kdt (build k ?r))"
+      using widest_spread_is_widest_spread "1.prems" SPLR 3 build_set by fastforce
+    moreover have "build k ps = Node ?a ?m (build k ?l) (build k ?r)"
+      using False by simp
+    ultimately show ?thesis
+      by auto
+  qed
+qed
+
+theorem build_size:
+  assumes "0 < length ps"
+  shows "size_kdt (build k ps) = length ps"
+  using assms
+proof (induction ps rule: length_induct)
+  case (1 ps)
+  then show ?case
+  proof (cases "length ps \<le> 1")
+    case True
+    then obtain p where "ps = [p]"
+      using "1.prems" by (cases ps) auto
+    thus ?thesis by simp
+  next
+    case False
+
+    let ?a = "widest_spread ps"
+    let ?lmr = "partition_by_median ?a ps"
+    let ?l = "fst ?lmr"
+    let ?m = "fst (snd ?lmr)"
+    let ?r = "snd (snd ?lmr)"
+
+    have "size_kdt (build k ?l) = length ?l" "size_kdt (build k ?r) = length ?r" 
+      using False partition_by_median_length(4,5,6,7)[of ?l ?m ?r ?a ps] "1.IH" by force+
+    moreover have "build k ps = Node ?a ?m (build k ?l) (build k ?r)"
       using False by simp
     ultimately show ?thesis
       using partition_by_median_length(1) by (smt prod.collapse size_kdt.simps(2))
   qed
 qed
 
-lemma build'_balanced:
+theorem build_balanced:
   assumes "0 < length ps"
-  shows "balanced (build' a k ps)"
+  shows "balanced (build k ps)"
   using assms
-proof (induction ps arbitrary: a rule: length_induct)
+proof (induction ps rule: length_induct)
   case (1 ps)
   show ?case
   proof (cases "length ps \<le> 1")
     case True
     then obtain p where "ps = [p]"
       using "1.prems" by (cases ps) auto
-    thus ?thesis unfolding balanced_def by simp
+    thus ?thesis 
+      unfolding balanced_def by simp
   next
     case False
 
-    let ?a' = "(a + 1) mod k"
-    let ?lmr = "partition_by_median a ps"
+    let ?a = "widest_spread ps"
+    let ?lmr = "partition_by_median ?a ps"
     let ?l = "fst ?lmr"
     let ?m = "fst (snd ?lmr)"
     let ?r = "snd (snd ?lmr)"
@@ -494,12 +564,12 @@ proof (induction ps arbitrary: a rule: length_induct)
       using False 0 by auto
     moreover have 3: "0 < length ?l" "0 < length ?r"
       using "1.prems" 0 1 2 by linarith+
-    ultimately have 4: "balanced (build' ?a' k ?l)" "balanced (build' ?a' k ?r)"
+    ultimately have 4: "balanced (build k ?l)" "balanced (build k ?r)"
       using "1.IH" by simp_all
-    have "build' a k ps = Node a ?m (build' ?a' k ?l) (build' ?a' k ?r)"
+    have "build k ps = Node ?a ?m (build k ?l) (build k ?r)"
       using False by simp
-    moreover have "size_kdt (build' ?a' k ?l) + 1 = size_kdt (build' ?a' k ?r) \<or> size_kdt (build' ?a' k ?l) = size_kdt (build' ?a' k ?r)"
-      using 1 3 build'_size by simp
+    moreover have "size_kdt (build k ?l) + 1 = size_kdt (build k ?r) \<or> size_kdt (build k ?l) = size_kdt (build k ?r)"
+      using 1 3 build_size by simp
     ultimately show ?thesis
       using 4 balanced_Node_if_wbal2 by auto
   qed
@@ -520,44 +590,14 @@ proof (rule ccontr)
     using assms(1) by simp
 qed
 
-lemma build'_complete:
-  assumes "length ps = 2 ^ h"
-  shows "complete (build' a k ps)"
-  using assms complete_if_balanced_size_2powh
-  by (simp add: build'_balanced build'_size)
-
-
-
-
-text \<open>
-  Wrapping up with the final build function.
-\<close>
-
-definition build :: "point list \<Rightarrow> kdt" where
-  "build ps = build' 0 (dim (hd ps)) ps"
-
-theorem build_set:
-  "0 < length ps \<Longrightarrow> set ps = set_kdt (build ps)"
-  using build'_set build_def by simp
-
-theorem build_invar:
-  "0 < length ps \<Longrightarrow> \<forall>p \<in> set ps. dim p = k \<Longrightarrow> distinct ps \<Longrightarrow> 0 < k \<Longrightarrow> invar k (build ps)"
-  using build'_invar build_def by simp
-
-theorem build_size:
-  "0 < length ps \<Longrightarrow> length ps = size_kdt (build ps)"
-  using build'_size build_def by simp
-
-theorem build_balanced:
-  "0 < length ps \<Longrightarrow> balanced (build ps)"
-  using build'_balanced build_def by simp
-
 theorem build_complete:
-  "length ps = 2 ^ h \<Longrightarrow> complete (build ps)"
-  using build'_complete build_def by simp
+  assumes "length ps = 2 ^ h"
+  shows "complete (build k ps)"
+  using assms complete_if_balanced_size_2powh
+  by (simp add: build_balanced build_size)
 
-theorem build_height:
-  "length ps = 2 ^ h \<Longrightarrow> length ps = 2 ^ (height (build ps))"
+corollary build_height:
+  "length ps = 2 ^ h \<Longrightarrow> length ps = 2 ^ (height (build k ps))"
   using build_complete build_size complete_iff_size by auto
 
 end
