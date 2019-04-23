@@ -13,7 +13,19 @@ text \<open>
   equal than s and all points in the right subtree must have a value at axis a that is
   greater or equal than v.
 
-  e.g.: Consider a 2-d tree.
+  ! Deviations from the papers:
+
+  The chosen tree representation corresponds the the paper of Friedman, J. (1976) with one minor
+  adjustment. Originally the Leafs hold buckets of size b of points. This representation fixes the
+  bucket size to b = 1, a single point per Leaf. This is only a minor adjustment since the paper
+  proves that b = 1 is the optimal bucket size for minimizing the runtime of the m nearest neighbor
+  algorithm and has little influence on the building of optimized k-d trees or the search algorithm.
+
+  It also simplifies the proves quite a bit.
+
+  Example:
+  
+  Consider a 2-d tree.
 
    0/x-axis:                          N 0 7
 
@@ -32,9 +44,6 @@ text \<open>
 
   Friedman, J. (1976). "An Algorithm for Finding Best Matches in Logarithmic Expected Time".
     https://dl.acm.org/citation.cfm?id=892052
-
-  And some slides about construction, range query and nearest neighbor algorithms:
-    https://courses.cs.washington.edu/courses/cse373/02au/lectures/lecture22l.pdf
 \<close>
 
 
@@ -63,7 +72,7 @@ fun set_kdt :: "kdt \<Rightarrow> point set" where
 
 fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
   "invar k (Leaf p) \<longleftrightarrow> dim p = k"
-| "invar k (Node a disc l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> disc) \<and> (\<forall>p \<in> set_kdt r. disc \<le> p!a) \<and>
+| "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. s \<le> p!a) \<and>
     invar k l \<and> invar k r \<and> a < k \<and> set_kdt l \<inter> set_kdt r = {}"
 
 fun size_kdt :: "kdt \<Rightarrow> nat" where

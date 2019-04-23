@@ -6,6 +6,22 @@ imports
 begin
 
 text \<open>
+  Building a k-d tree optimized for the m nearest neighbor search.
+
+  Recursively partition the points into two lists.
+
+  The partitioning criteria will be the median at a particular axis ws.
+  The left list will contain all points with p!a <= median at axis ws.
+  The right list will contain all points with median at axis ws <= p!a.
+  The left and right list differ in length by one or none.
+
+  The axis ws will the widest spread axis. The axis which has the widest spread of point values.
+\<close>
+
+
+
+
+text \<open>
   Widest spread axis of a list of points.
 \<close>
 
@@ -322,12 +338,6 @@ lemmas partition_by_median_length =
 
 text \<open>
   The build algorithm.
-
-  At each level splits the point into two lists depending on the median at the axis a which
-  has the widest spread between the min and max of all values.
-  The left list contains points with p!a <= median at axis a.
-  The right list contains points with median at axis a <= p!a.
-  The two lists differ in length by at most 1.
 \<close>
 
 function (sequential) build :: "dimension \<Rightarrow> point list \<Rightarrow> kdt" where
@@ -438,19 +448,19 @@ proof (induction ps rule: length_induct)
     let ?r = "snd (snd ?lmr)"
 
     have 1: "length ps = length ?l + length ?r"
-      using partition_by_median_length by (metis prod.collapse)+
+      using partition_by_median_length(1) by (metis prod.collapse)+
     hence 2: "length ?l < length ps" "length ?r < length ps"
       using False partition_by_median_length(4,5) not_le_imp_less "1.prems" by (smt prod.collapse)+
     hence 3: "0 < length ?l" "0 < length ?r"
       using 1 False partition_by_median_length(6,7) by simp_all
-    moreover have SPLR: "set ps = set ?l \<union> set ?r"
+    moreover have 4: "set ps = set ?l \<union> set ?r"
       using partition_by_median_set by (metis prod.collapse)
-    moreover have "distinct ?l" "distinct ?r" and 4: "set ?l \<inter> set ?r = {}"
-      using "1.prems"(3) SPLR 1 by (metis card_distinct distinct_append distinct_card length_append set_append)+
+    moreover have "distinct ?l" "distinct ?r" and 5: "set ?l \<inter> set ?r = {}"
+      using "1.prems"(3) 1 4 by (metis card_distinct distinct_append distinct_card length_append set_append)+
     moreover have "\<forall>p \<in> set ?l .dim p = k" "\<forall>p \<in> set ?r .dim p = k"
-      using "1.prems"(2) SPLR by simp_all
+      using "1.prems"(2) 4 5 by simp_all
     ultimately have "invar k (build k ?l)" "invar k (build k ?r)"
-      using "1.IH" 2 by (simp_all add: assms(4))
+      using "1.IH" 2 by (simp_all add: "1.prems"(4))
     moreover have "\<forall>p \<in> set ?l. p ! ?a \<le> ?m" "\<forall>p \<in> set ?r. ?m \<le> p ! ?a"
       using partition_by_median_filter by (metis prod.collapse)+
     moreover have "build k ps = Node ?a ?m (build k ?l) (build k ?r)"
@@ -458,7 +468,7 @@ proof (induction ps rule: length_induct)
     moreover have "?a < k"
       using "1.prems"(1,2,4) widest_spread_lt_k by auto
     ultimately show ?thesis 
-      using 3 4 build_set by auto
+      using 3 5 build_set by auto
   qed
 qed
 
@@ -484,19 +494,19 @@ proof (induction ps rule: length_induct)
     let ?r = "snd (snd ?lmr)"
 
     have 1: "length ps = length ?l + length ?r"
-      using partition_by_median_length by (metis prod.collapse)+
+      using partition_by_median_length(1) by (metis prod.collapse)+
     hence 2: "length ?l < length ps" "length ?r < length ps"
       using False partition_by_median_length(4,5) not_le_imp_less "1.prems" by (smt prod.collapse)+
     hence 3: "0 < length ?l" "0 < length ?r"
       using 1 False partition_by_median_length(6,7) by simp_all
-    moreover have SPLR: "set ps = set ?l \<union> set ?r"
+    moreover have 4: "set ps = set ?l \<union> set ?r"
       using partition_by_median_set by (metis prod.collapse)
     moreover have "\<forall>p \<in> set ?l .dim p = k" "\<forall>p \<in> set ?r .dim p = k"
-      using "1.prems"(2) SPLR by simp_all
+      using "1.prems"(2) 4 by simp_all
     ultimately have "widest_spread_invar k (build k ?l)" "widest_spread_invar k (build k ?r)"
       using "1.IH" 2 by simp_all
     moreover have "is_widest_spread ?a k (set_kdt (build k ?l) \<union> set_kdt (build k ?r))"
-      using widest_spread_is_widest_spread "1.prems" SPLR 3 build_set by fastforce
+      using widest_spread_is_widest_spread "1.prems" 3 4 build_set by fastforce
     moreover have "build k ps = Node ?a ?m (build k ?l) (build k ?r)"
       using False by simp
     ultimately show ?thesis

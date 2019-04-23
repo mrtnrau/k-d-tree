@@ -1,5 +1,7 @@
 theory Range_Search
-  imports Complex_Main "KDTree"
+imports 
+  Complex_Main
+  "KDTree"
 begin
 
 text \<open>

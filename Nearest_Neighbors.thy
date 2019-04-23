@@ -1,5 +1,7 @@
 theory Nearest_Neighbors
-  imports Complex_Main KDTree
+imports 
+  Complex_Main 
+  "KDTree"
 begin
 
 text \<open>
@@ -76,9 +78,6 @@ lemma sqed_com:
 
 text\<open>
   The m nearest neighbor algorithm.
-
-  The paper uses a priority queue for the m nearest neighbor candidates.
-  I am using a sorted list for simplicity instead.
 \<close>
 
 fun m_nearest_neighbors' :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
@@ -549,7 +548,7 @@ qed
 
 
 
-text\<open>Wrapping up.\<close>
+text\<open>The final m nearest neighbors algorithm.\<close>
 
 definition m_nearest_neighbors :: "nat \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
   "m_nearest_neighbors m p kdt = m_nearest_neighbors' m [] p kdt"
