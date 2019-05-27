@@ -1,3 +1,8 @@
+(*
+  File:     Range_Search.thy
+  Author:   Martin Rau, TU München
+*)
+
 section "Search Queries on the \<open>k\<close>-d Tree"
 
 theory Range_Search

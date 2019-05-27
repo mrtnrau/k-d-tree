@@ -1,3 +1,8 @@
+(*
+  File:     KDTree.thy
+  Author:   Martin Rau, TU München
+*)
+
 section "Definition of the \<open>k\<close>-d Tree"
 
 theory KDTree

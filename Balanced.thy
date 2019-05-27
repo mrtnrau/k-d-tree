@@ -1,3 +1,8 @@
+(*
+  File:     Balanced.thy
+  Author:   Martin Rau, TU München
+*)
+
 section "Building a balanced \<open>k\<close>-d Tree from a List of Points"
 
 theory Balanced

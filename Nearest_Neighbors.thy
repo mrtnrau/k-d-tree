@@ -1,3 +1,8 @@
+(*
+  File:     Nearest_Neighbors.thy
+  Author:   Martin Rau, TU München
+*)
+
 section "Nearest Neighbor Search on the \<open>k\<close>-d Tree"
 
 theory Nearest_Neighbors
