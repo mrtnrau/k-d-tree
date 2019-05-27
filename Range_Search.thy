@@ -5,7 +5,7 @@ imports
   KDTree
 begin
 
-paragraph\<open>
+text\<open>
   Verifying k-dimensional searches on the k-d tree.
 
   Given two \<open>k\<close>-dimensional points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> which bound the search space, the search should return
@@ -19,7 +19,7 @@ paragraph\<open>
   has \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> as its defining edges.
 \<close>
 
-paragraph \<open>
+text \<open>
   Simplify the problem by assuming that the two given points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> are the left lower
   and the right upper point.
 

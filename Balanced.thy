@@ -6,7 +6,7 @@ imports
   Median_Of_Medians_Selection.Median_Of_Medians_Selection
 begin
 
-paragraph \<open>
+text \<open>
   Build a balanced \<open>k\<close>-d Tree by recursively partition the points into two lists.
   The partitioning criteria will be the median at a particular axis \<open>ws\<close>.
   The left list will contain all points \<open>p\<close> with @{term "p!ws \<le> median"}.
@@ -334,7 +334,7 @@ termination build
   done
 
 
-paragraph \<open>
+text \<open>
   Setting up different build.simps for length_induct.
 \<close>
 
@@ -359,7 +359,7 @@ lemmas build_simps[simp] = build_simp_1 build_simp_3
 declare build.simps[simp del]
 
 
-paragraph \<open>
+text \<open>
   The main theorems.
 \<close>
 

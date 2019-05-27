@@ -5,7 +5,7 @@ imports
   KDTree
 begin
 
-paragraph \<open>
+text \<open>
   Verifying nearest neighbor search on the k-d tree.
   Given a \<open>k\<close>-d tree and a point \<open>p\<close>, which might not be in the tree, find the points \<open>ms\<close> which are
   closest to \<open>p\<close> by some metric.
@@ -94,7 +94,7 @@ fun nearest_nbors :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightar
   )"
 
 
-paragraph \<open>
+text \<open>
   Some intuition about the following auxiliary lemmas.
 
   Scenario A:
@@ -360,7 +360,7 @@ proof (induction kdt arbitrary: ms)
   hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ?ms') p"
     using sorted_sqed_last by blast
   hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ms) p"
-    using Leaf.prems(3,4,5)  by (smt sorted_sqed_last_take_insort_mono)
+    using Leaf.prems(3,4,5) by (smt sorted_sqed_last_take_insort_mono)
   thus ?case
     using Leaf.prems(5) by simp
 next

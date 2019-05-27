@@ -6,7 +6,7 @@ imports
 begin
 
 
-paragraph \<open>
+text \<open>
   A \<open>k\<close>-d tree is a space-partitioning data structure for organizing points in a \<open>k\<close>-dimensional space.
   In principle the \<open>k\<close>-d tree is a binary tree. The leafs hold the \<open>k\<close>-dimensional points and the nodes
   contain left and right subtrees as well as a discriminator \<open>s\<close> at a particular axis \<open>a\<close>.
