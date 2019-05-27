@@ -1,3 +1,5 @@
+section "Building a balanced \<open>k\<close>-d Tree from a List of Points"
+
 theory Balanced
 imports
   Complex_Main 
@@ -10,16 +12,15 @@ text \<open>
 
   Recursively partition the points into two lists.
 
-  The partitioning criteria will be the median at a particular axis ws.
-  The left list will contain all points with p!a <= median at axis ws.
+  The partitioning criteria will be the median at a particular axis \<open>ws\<close>.
+  The left list will contain all points \<open>p\<close> with @{term "p!ws <= median"}.
   The right list will contain all points with median at axis ws <= p!a.
   The left and right list differ in length by one or none.
 
   The axis ws will the widest spread axis. The axis which has the widest spread of point values.
 \<close>
 
-
-
+subsection "Widest Spread"
 
 text \<open>
   Widest spread axis of a list of points.
@@ -40,17 +41,17 @@ definition spread :: "axis \<Rightarrow> point list \<Rightarrow> real" where
 definition is_widest_spread :: "axis \<Rightarrow> dimension \<Rightarrow> point set \<Rightarrow> bool" where
   "is_widest_spread a k ps = (\<forall>a' < k. spread_set a' ps \<le> spread_set a ps)"
 
-fun widest_spread' :: "axis \<Rightarrow> point list \<Rightarrow> axis * real" where
-  "widest_spread' 0 ps = (0, spread 0 ps)"
-| "widest_spread' a ps = (
-    let (a', s') = widest_spread' (a - 1) ps in
+fun widest_spread_rec :: "axis \<Rightarrow> point list \<Rightarrow> axis * real" where
+  "widest_spread_rec 0 ps = (0, spread 0 ps)"
+| "widest_spread_rec a ps = (
+    let (a', s') = widest_spread_rec (a - 1) ps in
     let s = spread a ps in
     if s \<le> s' then (a', s') else (a, s)
   )"
 
 definition widest_spread :: "point list \<Rightarrow> axis" where
   "widest_spread ps = (
-    let (a, _) = widest_spread' (dim (hd ps) - 1) ps in
+    let (a, _) = widest_spread_rec (dim (hd ps) - 1) ps in
     a
   )"
 
@@ -64,8 +65,8 @@ lemma spread_is_spread_set:
   apply (auto simp add: Let_def spread_def spread_set_def)
   using set_map by (smt insert_image list.set_sel(1))
 
-lemma widest_spread'_is_spread:
-  "(ws, s) = widest_spread' a ps \<Longrightarrow> s = spread ws ps"
+lemma widest_spread_rec_is_spread:
+  "(ws, s) = widest_spread_rec a ps \<Longrightarrow> s = spread ws ps"
   by (induction a) (auto simp add: Let_def split: prod.splits if_splits)
 
 lemma is_widest_spread_k_le_ws:
@@ -76,31 +77,31 @@ lemma is_widest_spread_k_gt_ws:
   "is_widest_spread ws k ps \<Longrightarrow> \<not> (spread_set k ps \<le> spread_set ws ps) \<Longrightarrow> is_widest_spread k (k+1) ps"
   using is_widest_spread_def less_Suc_eq by auto
 
-lemma widest_spread'_le_a:
-  "ps \<noteq> [] \<Longrightarrow> (ws, s) = widest_spread' a ps \<Longrightarrow> ws \<le> a"
+lemma widest_spread_rec_le_a:
+  "ps \<noteq> [] \<Longrightarrow> (ws, s) = widest_spread_rec a ps \<Longrightarrow> ws \<le> a"
   by (induction a arbitrary: ws s) (auto simp add: Let_def le_Suc_eq split: prod.splits if_splits)
 
-lemma widest_spread'_is_widest_spread:
-  "ps \<noteq> [] \<Longrightarrow> (ws, s) = widest_spread' a ps \<Longrightarrow> is_widest_spread ws (a+1) (set ps)"
+lemma widest_spread_rec_is_widest_spread:
+  "ps \<noteq> [] \<Longrightarrow> (ws, s) = widest_spread_rec a ps \<Longrightarrow> is_widest_spread ws (a+1) (set ps)"
 proof (induction a arbitrary: ws s)
   case 0
   thus ?case
     using is_widest_spread_def by simp
 next
   case (Suc a)
-  then obtain ws' s' where *: "(ws', s') = widest_spread' a ps"
+  then obtain ws' s' where *: "(ws', s') = widest_spread_rec a ps"
     by (metis surj_pair)
   hence "is_widest_spread ws' (Suc a) (set ps)"
     using Suc.IH Suc.prems(1) by simp
   then show ?case 
-    using Suc.prems * spread_is_spread_set widest_spread'_is_spread 
+    using Suc.prems * spread_is_spread_set widest_spread_rec_is_spread 
     is_widest_spread_k_le_ws[of ws' "Suc a" "set ps"] is_widest_spread_k_gt_ws[of ws' "Suc a" "set ps"]
     by (auto simp add: Let_def split: prod.splits if_splits)
 qed
 
 lemma widest_spread_lt_k:
   "\<forall>p \<in> set ps. dim p = k \<Longrightarrow> 0 < k \<Longrightarrow> ps \<noteq> [] \<Longrightarrow> widest_spread ps < k"
-  using widest_spread_def widest_spread'_le_a
+  using widest_spread_def widest_spread_rec_le_a
   apply (auto split: prod.splits)
   by (metis Suc_le_lessD Suc_le_mono Suc_pred)
 
@@ -113,12 +114,12 @@ proof (cases k)
     using is_widest_spread_def by simp
 next
   case (Suc n)
-  obtain ws s where *: "(ws, s) = widest_spread' (dim (hd ps) - 1) ps"
+  obtain ws s where *: "(ws, s) = widest_spread_rec (dim (hd ps) - 1) ps"
     using prod.collapse by blast
   moreover have "dim (hd ps) = k"
     using assms(1,2) by simp
   ultimately have "is_widest_spread ws (k - 1 + 1) (set ps)"
-    using widest_spread'_is_widest_spread assms(1) by simp 
+    using widest_spread_rec_is_widest_spread assms(1) by simp 
   hence "is_widest_spread ws k (set ps)"
     using Suc by simp
   thus ?thesis
@@ -126,7 +127,7 @@ next
 qed
 
 
-
+subsection "Partitioning by Median"
 
 text \<open>
   Finding the median of points wrt axis a.
@@ -173,8 +174,6 @@ proof -
   thus ?thesis2 
     using axis_median_def by metis
 qed
-
-
 
 
 text \<open>
@@ -334,11 +333,7 @@ lemmas partition_by_median_length =
   partition_by_median_length_5
 
 
-
-
-text \<open>
-  The build algorithm.
-\<close>
+subsection \<open>Building the Tree\<close>
 
 function (sequential) build :: "dimension \<Rightarrow> point list \<Rightarrow> kdt" where
   "build _ [] = undefined" (* We never hit this case recursively. Only if the original input is really [].*)
@@ -355,8 +350,6 @@ termination build
   apply (auto)
   apply fastforce+
   done
-
-
 
 
 text \<open>

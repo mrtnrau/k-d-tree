@@ -21,7 +21,7 @@ text \<open>
   proves that b = 1 is the optimal bucket size for minimizing the runtime of the m nearest neighbor
   algorithm and has little influence on the building of optimized k-d trees or the search algorithm.
 
-  It also simplifies the proves quite a bit.
+  It also simplifies the proofs quite a bit.
 
   Example:
   
@@ -47,8 +47,6 @@ text \<open>
 \<close>
 
 
-
-
 type_synonym point = "real list"
 type_synonym axis = nat
 type_synonym dimension = nat
@@ -57,8 +55,6 @@ type_synonym discriminator = real
 datatype kdt =
   Leaf point
 | Node axis discriminator kdt kdt
-
-
 
 
 definition dim :: "point \<Rightarrow> nat"  where
@@ -95,8 +91,6 @@ fun complete :: "kdt \<Rightarrow> bool" where
 | "complete (Node _ _ l r) \<longleftrightarrow> complete l \<and> complete r \<and> height l = height r"
 
 
-
-
 lemma invar_l:
   "invar k (Node a s l r) \<Longrightarrow> invar k l"
   by simp
@@ -128,8 +122,6 @@ lemma invar_distinct:
 lemma invar_set:
   "set_kdt (Node a s l r) = set_kdt l \<union> set_kdt r"
   by simp
-
-
 
 
 text \<open>
