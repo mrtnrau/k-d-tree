@@ -1,43 +1,28 @@
+section "Definition of the \<open>k\<close>-d Tree"
+
 theory KDTree
 imports
   Complex_Main
 begin
 
-text \<open>
-  A k-d tree is a space-partitioning data structure for organizing points in a k-dimensional space.
-  In principle the k-d tree is a binary tree. The leafs hold the k-dimensional points and the nodes
-  contain left and right subtrees as well as a discriminator at a particular axis.
-  Every node divides the space into two parts by splitting along a hyperplane.
-  Consider a node n with associated discriminator s at axis a.
-  All points in the left subtree must have a value at axis a that is less or
-  equal than s and all points in the right subtree must have a value at axis a that is
-  greater or equal than v.
 
-  ! Deviations from the papers:
+paragraph \<open>
+  A \<open>k\<close>-d tree is a space-partitioning data structure for organizing points in a \<open>k\<close>-dimensional space.
+  In principle the \<open>k\<close>-d tree is a binary tree. The leafs hold the \<open>k\<close>-dimensional points and the nodes
+  contain left and right subtrees as well as a discriminator \<open>s\<close> at a particular axis \<open>a\<close>.
+  Every node divides the space into two parts by splitting along a hyperplane.
+  Consider a node \<open>n\<close> with associated discriminator \<open>s\<close> at axis \<open>a\<close>.
+  All points in the left subtree must have a value at axis \<open>a\<close> that is less than or
+  equal to \<open>s\<close> and all points in the right subtree must have a value at axis \<open>a\<close> that is
+  greater than or equal to \<open>s\<close>.
+
+  Deviations from the papers:
 
   The chosen tree representation corresponds the the paper of Friedman, J. (1976) with one minor
-  adjustment. Originally the Leafs hold buckets of size b of points. This representation fixes the
-  bucket size to b = 1, a single point per Leaf. This is only a minor adjustment since the paper
-  proves that b = 1 is the optimal bucket size for minimizing the runtime of the m nearest neighbor
-  algorithm and has little influence on the building of optimized k-d trees or the search algorithm.
-
-  It also simplifies the proofs quite a bit.
-
-  Example:
-  
-  Consider a 2-d tree.
-
-   0/x-axis:                          N 0 7
-
-   1/y-axis:                N 1 3                N 1 6
-
-   0/x-axis:         N 0 2        N 0 4      (9,6)    N 0 8
-
-                 (2,3) (7, 2)  (4,7) (5,4)         (8,7) (9,9)
-
-  Leaf (4,7) is at its current position because 4 <= 7, 7 >= 3 and 4 <= 4.
-
-  More information about k-d trees:
+  adjustment. Originally the leafs hold buckets of points of size \<open>b\<close>. This representation fixes the
+  bucket size to \<open>b = 1\<close>, a single point per Leaf. This is only a minor adjustment since the paper
+  proves that \<open>b = 1\<close> is the optimal bucket size for minimizing the runtime of the nearest neighbor
+  algorithm, only simplifies building the optimized \<open>k\<close>-d trees and has little influence on the search algorithm.
 
   Bentley, J. L. (1975). "Multidimensional binary search trees used for associative searching".
     https://dl.acm.org/citation.cfm?id=361007
@@ -45,7 +30,6 @@ text \<open>
   Friedman, J. (1976). "An Algorithm for Finding Best Matches in Logarithmic Expected Time".
     https://dl.acm.org/citation.cfm?id=892052
 \<close>
-
 
 type_synonym point = "real list"
 type_synonym axis = nat
@@ -56,6 +40,8 @@ datatype kdt =
   Leaf point
 | Node axis discriminator kdt kdt
 
+
+subsection "Definition of the \<open>k\<close>-d Tree Invariant and related functions"
 
 definition dim :: "point \<Rightarrow> nat"  where
   "dim p = length p"
@@ -124,8 +110,8 @@ lemma invar_set:
   by simp
 
 
-text \<open>
-  Lemmas adapted from "HOL-Library.Tree" to kdt tree structure.
+subsection \<open>
+  Lemmas adapted from \<open>HOL-Library.Tree\<close> to \<open>k\<close>-d Tree.
 \<close>
 
 lemma size_ge0[simp]: 
@@ -350,10 +336,8 @@ next
 qed
 
 
-
-
-text \<open>
-  Lemmas adapted from "HOL-Library.Tree_Real" to kdt tree structure.
+subsection \<open>
+  Lemmas adapted from \<open>HOL-Library.Tree_Real\<close> to \<open>k\<close>-d Tree.
 \<close>
 
 lemma size_height_log: 

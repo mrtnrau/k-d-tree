@@ -1,35 +1,35 @@
+section "Search Queries on the \<open>k\<close>-d Tree"
+
 theory Range_Search
 imports 
-  Complex_Main
-  "KDTree"
+  KDTree
 begin
 
-text \<open>
+paragraph\<open>
   Verifying k-dimensional searches on the k-d tree.
 
-  Given two k-dimensional points p0 and p1 which bound the search space, the search should return
+  Given two \<open>k\<close>-dimensional points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> which bound the search space, the search should return
   only the points which satisfy the following criteria:
 
   For every point p in the resulting set:
-    For every axis a \<in> [0, k-1]:
-      min (p0!a) (p1!a) <= p!a and p!a <= max (p0!a) (p1!a)
+    For every axis @{term "a \<in> {0..k-1}"}:
+      @{term "min (p\<^sub>0!a) (p\<^sub>1!a) <= p!a \<and> p!a <= max (p\<^sub>0!a) (p\<^sub>1!a)"}
 
-  For example: In a 2-d tree a query corresponds to selecting all the points in
-  the rectangle which has p0 and p1 as its defining edges.
+  In a \<open>2\<close>-d tree a query corresponds to selecting all the points in the rectangle which
+  has \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> as its defining edges.
 \<close>
 
-text \<open>
-  Simplifying the problem:
-
-  Assume that the two given points p0 and p1 which define the bounding box are the left lower
+paragraph \<open>
+  Simplify the problem by assuming that the two given points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> are the left lower
   and the right upper point.
 
   For every point p in the resulting set:
-    For every axis a \<in> [0, k-1]:
-      p0!a <= p1!a
+    For every axis @{term "a \<in> {0..k-1}"}:
+      @{term "p\<^sub>0!a <= p\<^sub>1!a"}
 \<close>
 
-text\<open>The search function and auxiliary definitions:\<close>
+
+subsection "Search Function and Auxiliary Definitions"
 
 definition is_bounding_box :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarrow> bool" where
   "is_bounding_box k p\<^sub>0 p\<^sub>1 \<longleftrightarrow> dim p\<^sub>0 = k \<and> dim p\<^sub>1 = k \<and> (\<forall>i < k. p\<^sub>0!i \<le> p\<^sub>1!i)"
@@ -49,7 +49,7 @@ fun search_rec :: "dimension \<Rightarrow> point \<Rightarrow> point \<Rightarro
   )"
 
 
-text \<open>Auxiliary lemmas:\<close>
+subsection "Auxiliary Lemmas"
 
 lemma l_pibb_empty:
   assumes "invar k (Node a s l r)" "s < p\<^sub>0!a"
@@ -80,7 +80,7 @@ proof -
 qed
 
 
-text \<open>The simplified main theorem:\<close>
+subsection "Simplified Main Theorem"
 
 theorem search_rec:
   assumes "invar k kdt"
@@ -89,14 +89,7 @@ theorem search_rec:
   by (induction kdt) auto
 
 
-text \<open>
-  Un-simplifying the problem:
-
-  Given two arbitrary points p0 and p1 which only satisfy the dimensionality property,
-  does the query function work?
-\<close>
-
-text \<open>Auxiliary functions and the final query function:\<close>
+subsection "Search and Auxiliary Definitions"
 
 definition to_bounding_box :: "point \<Rightarrow> point \<Rightarrow> point * point" where
   "to_bounding_box p\<^sub>0 p\<^sub>1 = (
@@ -110,7 +103,7 @@ definition search :: "point \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> 
    in search_rec (dim q\<^sub>0) p\<^sub>0 p\<^sub>1 kdt)"
 
 
-text \<open>Auxiliary lemmas and the final theorem:\<close>
+subsection "Auxiliary Lemmas"
 
 lemma to_bounding_box_is_bounding_box:
   assumes "dim q\<^sub>0 = k" "dim q\<^sub>1 = k" "(p\<^sub>0 ,p\<^sub>1) = to_bounding_box q\<^sub>0 q\<^sub>1"
@@ -122,6 +115,8 @@ lemma in_bounding_box:
   shows "in_bounding_box k p p\<^sub>0 p\<^sub>1 \<longleftrightarrow> (\<forall>i < k. min (q\<^sub>0!i) (q\<^sub>1!i) \<le> p!i \<and> p!i \<le> max (q\<^sub>0!i) (q\<^sub>1!i))"
   using assms by (auto simp add: min_def max_def to_bounding_box_def in_bounding_box_def Let_def)
 
+
+subsection "Main Theorem and Corollaries"
 
 theorem search:
   assumes "invar k kdt" "dim q\<^sub>0 = k" "dim q\<^sub>1 = k"

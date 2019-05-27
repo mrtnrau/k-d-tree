@@ -2,29 +2,21 @@ section "Building a balanced \<open>k\<close>-d Tree from a List of Points"
 
 theory Balanced
 imports
-  Complex_Main 
-  "KDTree"
-  "Median_Of_Medians_Selection.Median_Of_Medians_Selection"
+  KDTree
+  Median_Of_Medians_Selection.Median_Of_Medians_Selection
 begin
 
-text \<open>
-  Building a k-d tree optimized for the m nearest neighbor search.
-
-  Recursively partition the points into two lists.
-
+paragraph \<open>
+  Build a balanced \<open>k\<close>-d Tree by recursively partition the points into two lists.
   The partitioning criteria will be the median at a particular axis \<open>ws\<close>.
-  The left list will contain all points \<open>p\<close> with @{term "p!ws <= median"}.
-  The right list will contain all points with median at axis ws <= p!a.
+  The left list will contain all points \<open>p\<close> with @{term "p!ws \<le> median"}.
+  The right list will contain all points with median at axis @{term "ws \<le> p!a"}.
   The left and right list differ in length by one or none.
-
-  The axis ws will the widest spread axis. The axis which has the widest spread of point values.
+  The axis \<open>ws\<close> will the widest spread axis. The axis which has the widest spread of point values.
 \<close>
 
-subsection "Widest Spread"
 
-text \<open>
-  Widest spread axis of a list of points.
-\<close>
+subsection "Widest Spread of a List of Points"
 
 definition spread_set :: "axis \<Rightarrow> point set \<Rightarrow> real" where
   "spread_set a ps = (
@@ -127,11 +119,7 @@ next
 qed
 
 
-subsection "Partitioning by Median"
-
-text \<open>
-  Finding the median of points wrt axis a.
-\<close>
+subsection "Partitioning a List of Points by Median"
 
 definition axis_median :: "axis \<Rightarrow> point list \<Rightarrow> real" where
   "axis_median a ps = (
@@ -176,9 +164,7 @@ proof -
 qed
 
 
-text \<open>
-  Partitioning points by axis < = > to some value m.
-\<close>
+subsubsection "Threeway Partitioning a List of Points"
 
 fun partition :: "axis \<Rightarrow> real \<Rightarrow> point list \<Rightarrow> point list * point list * point list" where
   "partition _ _ [] = ([], [], [])"
@@ -220,11 +206,7 @@ lemma partition_length:
   using assms by (induction ps arbitrary: lt eq gt) (auto split: prod.splits if_splits)
 
 
-
-
-text \<open>
-  Partitioning points balanced wrt the median at axis a.
-\<close>
+subsubsection "Partitioning a List of Points balanced by Median"
 
 definition partition_by_median :: "axis \<Rightarrow> point list \<Rightarrow> point list * real * point list" where
   "partition_by_median a ps = (
@@ -352,7 +334,7 @@ termination build
   done
 
 
-text \<open>
+paragraph \<open>
   Setting up different build.simps for length_induct.
 \<close>
 
@@ -377,9 +359,7 @@ lemmas build_simps[simp] = build_simp_1 build_simp_3
 declare build.simps[simp del]
 
 
-
-
-text \<open>
+paragraph \<open>
   The main theorems.
 \<close>
 

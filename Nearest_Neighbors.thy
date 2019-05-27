@@ -1,20 +1,19 @@
+section "Nearest Neighbor Search on the \<open>k\<close>-d Tree"
+
 theory Nearest_Neighbors
 imports 
   KDTree
 begin
 
-text \<open>
-  Verifying m nearest neighbor search on the k-d tree.
-
-  Given k-d tree and a point p, which might not be in the tree, find the points ms which are
-  closest to p by some metric.
-
+paragraph \<open>
+  Verifying nearest neighbor search on the k-d tree.
+  Given a \<open>k\<close>-d tree and a point \<open>p\<close>, which might not be in the tree, find the points \<open>ms\<close> which are
+  closest to \<open>p\<close> by some metric.
   The chosen metric is the euclidean distance between two points.
-
   To avoid working with roots I will work with the squared euclidean distance.
 \<close>
 
-text \<open>Definitions and lemmas about the squared euclidean distance.\<close>
+subsection "Definition of the Squared Euclidean Distance"
 
 definition sqed' :: "real \<Rightarrow> real \<Rightarrow> real" where
   "sqed' x y = (x - y) ^ 2"
@@ -73,9 +72,7 @@ lemma sqed_com:
   by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_com)
 
 
-text\<open>
-  The m nearest neighbor algorithm.
-\<close>
+subsection "The recursive Nearest Neighbor Algorithm"
 
 fun nearest_nbors :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
   "nearest_nbors m ns p (Leaf p') = (
@@ -97,14 +94,14 @@ fun nearest_nbors :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightar
   )"
 
 
-text \<open>Auxiliary lemmas.\<close>
-
-text \<open>
-  Some intuition about this step:
+paragraph \<open>
+  Some intuition about the following auxiliary lemmas.
 
   Scenario A:
-  We are searching for the nearest neighbor of point p and have found candidate c at axis a.
-  Since sqed c p <= sqed' s (p!a) we do not need to check the right side.
+
+  We are searching for the nearest neighbor of point \<open>p\<close> and have found candidate \<open>c\<close> at axis \<open>a\<close>.
+  Since @{term "sqed c p \<le> sqed' s (p!a)"} we do not need to check the right side.
+
 \begin{alltt}
                                 s
           c                     |
@@ -116,9 +113,10 @@ text \<open>
 \end{alltt}
 
   Scenario B:
-  We are searching for the nearest neighbor of point p and have found candidate c at axis a.
-  Since sqed' s (p!a) < sqed c p  we do need to check the right side.
+  We are searching for the nearest neighbor of point \<open>p\<close> and have found candidate \<open>c\<close> at axis \<open>a\<close>.
+  Since @{term "sqed' s (p!a) < sqed c p"} we do need to check the right side.
 
+\begin{alltt}
                                 s
           c                     |
                                 |
@@ -126,9 +124,10 @@ text \<open>
                                 |
                                 |  q
                                 |
+\end{alltt}
 
-  The minimize_sqed lemma moves q to q' by setting all coordinates of q' (except the current axis a)
-  to the coordinates of p and minimizes the distance between p and q'.
+  The minimize_sqed lemma moves \<open>q\<close> to \<open>q'\<close> by setting all coordinates of \<open>q'\<close> (except the current axis \<open>a\<close>)
+  to the coordinates of \<open>p\<close> and minimizes subsequently the distance between \<open>p\<close> and \<open>q'\<close>.
 \<close>
 
 lemma minimize_sqed:
@@ -180,7 +179,7 @@ proof standard
 qed
 
 
-text\<open>Auxiliary lemmas about sorted_wrt for the base cases of the final theorem.\<close>
+subsection "Auxiliary Lemmas abount \<open>sorted_wrt\<close>"
 
 definition sorted_sqed :: "point \<Rightarrow> point list \<Rightarrow> bool" where
   "sorted_sqed p \<equiv> sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)"
@@ -287,7 +286,7 @@ proof -
 qed
 
 
-text\<open>The main lemmas.\<close>
+subsection "The Main Theorems"
 
 lemma mnn_length:
   "length (nearest_nbors m ms p kdt) = min m (size_kdt kdt + length ms)"
@@ -346,9 +345,6 @@ next
   thus ?case 
     using DCLR by (auto simp add: Let_def)
 qed
-
-
-text\<open>Last auxiliary lemma and the main theorem.\<close>
 
 lemma mnn_le_last_ms:
   assumes "invar k kdt" "dim p = k" "sorted_sqed p ms" "m \<le> length ms" "0 < m"
@@ -535,7 +531,7 @@ next
 qed
 
 
-text\<open>The final nearest neighbors algorithm.\<close>
+subsection "Nearest Neighbors Definition and Theorems"
 
 definition nearest_neighbors :: "nat \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
   "nearest_neighbors m p kdt = nearest_nbors m [] p kdt"
