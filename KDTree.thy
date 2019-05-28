@@ -46,7 +46,7 @@ datatype kdt =
 | Node axis discriminator kdt kdt
 
 
-subsection "Definition of the \<open>k\<close>-d Tree Invariant and related functions"
+subsection "Definition of the \<open>k\<close>-d Tree Invariant and Related Functions"
 
 definition dim :: "point \<Rightarrow> nat"  where
   "dim p = length p"
@@ -115,9 +115,7 @@ lemma invar_set:
   by simp
 
 
-subsection \<open>
-  Lemmas adapted from \<open>HOL-Library.Tree\<close> to \<open>k\<close>-d Tree.
-\<close>
+subsection "Lemmas adapted from \<open>HOL-Library.Tree\<close> to \<open>k\<close>-d Tree"
 
 lemma size_ge0[simp]: 
   "0 < size_kdt kdt"
@@ -341,9 +339,7 @@ next
 qed
 
 
-subsection \<open>
-  Lemmas adapted from \<open>HOL-Library.Tree_Real\<close> to \<open>k\<close>-d Tree.
-\<close>
+subsection "Lemmas adapted from \<open>HOL-Library.Tree_Real\<close> to \<open>k\<close>-d Tree"
 
 lemma size_height_log: 
   "log 2 (size_kdt kdt) \<le> height kdt"
