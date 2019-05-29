@@ -340,7 +340,7 @@ termination build
 
 
 text \<open>
-  Setting up different build.simps for length_induct.
+  Setting up different build simps for length induct.
 \<close>
 
 lemma build_simp_1:

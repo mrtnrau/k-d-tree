@@ -23,17 +23,13 @@ text \<open>
 
   Deviations from the papers:
 
-  The chosen tree representation corresponds the the paper of Friedman, J. (1976) with one minor
+  The chosen tree representation is taken from @{cite "DBLP:journals/toms/FriedmanBF77"} with one minor
   adjustment. Originally the leafs hold buckets of points of size \<open>b\<close>. This representation fixes the
   bucket size to \<open>b = 1\<close>, a single point per Leaf. This is only a minor adjustment since the paper
   proves that \<open>b = 1\<close> is the optimal bucket size for minimizing the runtime of the nearest neighbor
-  algorithm, only simplifies building the optimized \<open>k\<close>-d trees and has little influence on the search algorithm.
-
-  Bentley, J. L. (1975). "Multidimensional binary search trees used for associative searching".
-    https://dl.acm.org/citation.cfm?id=361007
-
-  Friedman, J. (1976). "An Algorithm for Finding Best Matches in Logarithmic Expected Time".
-    https://dl.acm.org/citation.cfm?id=892052
+  algorithm @{cite "DBLP:journals/toms/FriedmanBF77"}, only simplifies building the optimized
+  \<open>k\<close>-d trees @{cite "DBLP:journals/toms/FriedmanBF77"} and has little influence on the
+  search algorithm @{cite "DBLP:journals/cacm/Bentley75"}.
 \<close>
 
 type_synonym point = "real list"

@@ -131,7 +131,7 @@ text \<open>
                                 |
 \end{alltt}
 
-  The minimize_sqed lemma moves \<open>q\<close> to \<open>q'\<close> by setting all coordinates of \<open>q'\<close> (except the current axis \<open>a\<close>)
+  The minimize sqed lemma moves \<open>q\<close> to \<open>q'\<close> by setting all coordinates of \<open>q'\<close> (except the current axis \<open>a\<close>)
   to the coordinates of \<open>p\<close> and minimizes subsequently the distance between \<open>p\<close> and \<open>q'\<close>.
 \<close>
 

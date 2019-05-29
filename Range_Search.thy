@@ -16,9 +16,9 @@ text\<open>
   Given two \<open>k\<close>-dimensional points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> which bound the search space, the search should return
   only the points which satisfy the following criteria:
 
-  For every point p in the resulting set:
-    For every axis @{term "a \<in> {0..k-1}"}:
-      @{term "min (p\<^sub>0!a) (p\<^sub>1!a) <= p!a \<and> p!a <= max (p\<^sub>0!a) (p\<^sub>1!a)"}
+  For every point p in the resulting set: \newline
+  \hspace{1cm}  For every axis @{term "a \<in> {0..k-1}"}: \newline
+  \hspace{2cm}    @{term "min (p\<^sub>0!a) (p\<^sub>1!a) <= p!a \<and> p!a <= max (p\<^sub>0!a) (p\<^sub>1!a)"} \newline
 
   In a \<open>2\<close>-d tree a query corresponds to selecting all the points in the rectangle which
   has \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> as its defining edges.
@@ -28,9 +28,9 @@ text \<open>
   Simplify the problem by assuming that the two given points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> are the left lower
   and the right upper point.
 
-  For every point p in the resulting set:
-    For every axis @{term "a \<in> {0..k-1}"}:
-      @{term "p\<^sub>0!a <= p\<^sub>1!a"}
+  For every point p in the resulting set: \newline
+  \hspace{1cm}  For every axis @{term "a \<in> {0..k-1}"}: \newline
+  \hspace{2cm}    @{term "p\<^sub>0!a <= p\<^sub>1!a"} \newline
 \<close>
 
 
