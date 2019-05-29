@@ -58,7 +58,7 @@ qed
 
 lemma sqed'_split:
   "x \<le> s \<Longrightarrow> s \<le> y \<Longrightarrow> sqed' x s + sqed' s y \<le> sqed' x y"
-  using sqed'_def inequality by smt
+  using inequality[of "x - s" "s - y"] sqed'_def by simp
 
 lemma sqed_ge_0:
   "dim p\<^sub>0 = dim p\<^sub>1 \<Longrightarrow> 0 \<le> sqed p\<^sub>0 p\<^sub>1"
@@ -141,11 +141,11 @@ lemma minimize_sqed:
   using assms
   apply (induction p\<^sub>0 p\<^sub>1 arbitrary: a k rule: sqed.induct)
   apply (auto simp add: sqed_ge_0 split: nat.splits)
-  by (smt sqed'_ge_0)
+  by (meson dual_order.trans le_add_same_cancel2 sqed'_ge_0)
 
 lemma cutoff_r:
   assumes "invar k (Node a s l r)" "dim p = k"
-  assumes "p!a \<le> s" "sqed p c \<le> sqed' s (p!a)"
+  assumes "p!a \<le> s" "sqed p c \<le> sqed' (p!a) s"
   shows "\<forall>q \<in> set_kdt r. sqed p c \<le> sqed p q"
 proof standard
   fix q
@@ -153,14 +153,20 @@ proof standard
 
   let ?q' = "p[a := (q!a)]"
 
-  have "sqed' (p!a) (?q'!a) \<le> sqed p q"
+  have 0: "s \<le> q!a"
+    using * assms(1) invar_r_ge_a by blast
+  have 1: "sqed' (p!a) (?q'!a) \<le> sqed p q"
     using * minimize_sqed assms(1,2) invar_axis_lt_d invar_dim invar_r by blast
-  hence "sqed' (p!a) s + sqed' s (q!a) \<le> sqed p q"
-    by (smt * assms(1,2,3) dim_def nth_list_update_eq invar_axis_lt_d invar_r_ge_a sqed'_split)
-  hence "sqed p c \<le> sqed p q"
-    by (smt assms(4) sqed'_com sqed'_ge_0)
 
-  thus "sqed p c \<le> sqed p q" by blast
+  have "sqed p c \<le> sqed' (p!a) s"
+    using assms(4) by blast
+  also have "... \<le> sqed' (p!a) s + sqed' s (q!a)"
+    using sqed'_ge_0 by simp
+  also have "... \<le> sqed' (p!a) (q!a)"
+    using 0 sqed'_split assms(3) by simp
+  also have "... \<le> sqed p q"
+    using 1 assms(1,2) by simp
+  finally show "sqed p c \<le> sqed p q" .
 qed
 
 lemma cutoff_l:
@@ -173,14 +179,20 @@ proof standard
 
   let ?q' = "p[a := (q!a)]"
 
-  have "sqed' (p!a) (?q'!a) \<le> sqed p q"
-    using * minimize_sqed invar_dim invar_l invar_axis_lt_d assms(1,2) by blast
-  hence "sqed' (p!a) s + sqed' s (q!a) \<le> sqed p q"
-    by (smt * assms(1,2,3) dim_def invar_axis_lt_d invar_l_le_a nth_list_update_eq sqed'_com sqed'_split)
-  hence "sqed p c \<le> sqed p q"
-    by (smt assms(4) sqed'_com sqed'_ge_0)
+  have 0: "q!a \<le> s"
+    using * assms(1) invar_l_le_a by blast
+  have 1: "sqed' (p!a) (?q'!a) \<le> sqed p q"
+    using * minimize_sqed assms(1,2) invar_axis_lt_d invar_dim invar_l by blast
 
-  thus "sqed p c \<le> sqed p q" by blast
+  have "sqed p c \<le> sqed' s (p!a)"
+    using assms(4) by blast
+  also have "... \<le> sqed' s (p!a) + sqed' (q!a) s"
+    using sqed'_ge_0 by simp
+  also have "... \<le> sqed' (p!a) (q!a)"
+    using 0 sqed'_split assms(3) by (metis add.commute sqed'_com)
+  also have "... \<le> sqed p q"
+    using 1 assms(1,2) by simp
+  finally show "sqed p c \<le> sqed p q" .
 qed
 
 
@@ -365,7 +377,7 @@ proof (induction kdt arbitrary: ms)
   hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ?ms') p"
     using sorted_sqed_last by blast
   hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ms) p"
-    using Leaf.prems(3,4,5) by (smt sorted_sqed_last_take_insort_mono)
+    using Leaf.prems(3,4,5) sorted_sqed_last_take_insort_mono[of p ms m p'] order_trans by blast
   thus ?case
     using Leaf.prems(5) by simp
 next
@@ -379,14 +391,14 @@ next
   hence "sqed (last (nearest_nbors m ?cl p r)) p \<le> sqed (last ?cl) p"
     using mnn_sorted Node.IH(2) Node.prems(1,2,3,5) invar_r by blast
   hence IHLR: "sqed (last (nearest_nbors m ?cl p r)) p \<le> sqed (last ms) p"
-    using Node.IH(1) Node.prems invar_l mnn_length_gt_0 by smt
+    using Node.IH(1)[of ms] Node.prems invar_l mnn_length_gt_0 by (meson order_trans)
 
   have "m \<le> length ?cr"
     using mnn_length Node.prems(4) by auto
   hence "sqed (last (nearest_nbors m ?cr p l)) p \<le> sqed (last ?cr) p"
     using mnn_sorted Node.IH(1) Node.prems(1,2,3,5) invar_l by blast
   hence IHRL: "sqed (last (nearest_nbors m ?cr p l)) p \<le> sqed (last ms) p"
-    using Node.IH(2) Node.prems invar_r mnn_length_gt_0 by smt
+    using Node.IH(2)[of ms] Node.prems invar_r mnn_length_gt_0 by (meson order_trans)
 
   show ?case 
     using Node IHLR IHRL by (auto simp add: Let_def)
@@ -431,7 +443,7 @@ next
   proof cases
     case A
     hence "\<forall>q \<in> set_kdt r. sqed (last ?cl) p \<le> sqed q p"
-      using Node.prems(1,2) cutoff_r sqed_com by metis
+      using Node.prems(1,2) cutoff_r by (metis sqed'_com sqed_com)
     thus ?thesis
       using IHL A by auto
   next
@@ -483,7 +495,7 @@ next
   next
     case C
     hence "\<forall>q \<in> set_kdt l. sqed (last ?cr) p \<le> sqed q p"
-      using Node.prems(1,2) cutoff_l sqed_com by smt
+      using Node.prems(1,2) cutoff_l[of k a s l r p "last ?cr"] by fastforce
     thus ?thesis
       using IHR C by auto
   next
@@ -566,7 +578,7 @@ proof (cases "0 < m")
   hence "\<forall>q \<in> set_kdt kdt - set mns. sqed (last mns) p \<le> sqed q p"
     using assms nearest_neighbors_def mnn_sqed by auto
   hence "\<forall>q \<in> set_kdt kdt - set mns. \<forall>n \<in> set mns. sqed n p \<le> sqed q p"
-    by (smt assms nearest_neighbors_sorted sorted_sqed_last)
+    using assms(3) nearest_neighbors_sorted[of p m kdt] sorted_sqed_last[of p mns] by force
   thus ?thesis
     using nearest_neighbors_def by blast
 next
