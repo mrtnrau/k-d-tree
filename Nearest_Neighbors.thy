@@ -495,7 +495,7 @@ next
   next
     case C
     hence "\<forall>q \<in> set_kdt l. sqed (last ?cr) p \<le> sqed q p"
-      using Node.prems(1,2) cutoff_l[of k a s l r p "last ?cr"] by fastforce
+      using Node.prems(1,2) cutoff_l[of k a s l r p "last ?cr"] sqed_com by fastforce
     thus ?thesis
       using IHR C by auto
   next
