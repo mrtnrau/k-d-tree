@@ -31,7 +31,7 @@ definition spread_set :: "axis \<Rightarrow> point set \<Rightarrow> real" where
 
 definition spread :: "axis \<Rightarrow> point list \<Rightarrow> real" where
   "spread a ps = (
-    let as = map (\<lambda>p. p!a) ps in
+    let as = map (\<lambda>p. p!a) (tl ps) in
     fold max as (hd ps !a) - fold min as (hd ps!a)
   )"
 
@@ -60,7 +60,7 @@ lemma spread_is_spread_set:
   "ps \<noteq> [] \<Longrightarrow> spread_set a (set ps) = spread a ps"
   using Max.set_eq_fold[of "hd ps !a" _] Min.set_eq_fold[of "hd ps !a"]
   apply (auto simp add: Let_def spread_def spread_set_def)
-  using set_map by (smt insert_image list.set_sel(1))
+  by (metis (no_types, lifting) hd_Cons_tl list.simps(15) list.simps(9) set_map)
 
 lemma widest_spread_rec_is_spread:
   "(ws, s) = widest_spread_rec a ps \<Longrightarrow> s = spread ws ps"
@@ -221,12 +221,15 @@ definition partition_by_median :: "axis \<Rightarrow> point list \<Rightarrow> p
      (lt @ take rem eq, m, drop rem eq @ gt)
   )"
 
+lemma set_take_drop: "set xs = set (take n xs) \<union> set (drop n xs)"
+  by (metis append_take_drop_id set_append)
+
 lemma partition_by_median_set:
   assumes "(l, m, r) = partition_by_median a ps"
   shows "set ps = set l \<union> set r"
   using assms unfolding partition_by_median_def
   apply (simp add: Let_def split: prod.splits)
-  by (smt partition_set append_take_drop_id set_append inf_sup_aci(6))
+  using set_take_drop by (metis partition_set inf_sup_aci(6))
 
 lemma partition_by_median_filter:
   assumes "(l, m, r) = partition_by_median a ps"
@@ -234,14 +237,14 @@ lemma partition_by_median_filter:
     and "\<forall>p \<in> set r. m \<le> p!a"
   using assms unfolding partition_by_median_def
   apply (auto simp add: Let_def split: prod.splits)
-  by (smt partition_filter in_set_takeD in_set_dropD)+
+  by (metis le_less dual_order.refl in_set_takeD in_set_dropD partition_filter)+
 
 lemma partition_by_median_length_1:
   assumes "(l, m, r) = partition_by_median a ps"
   shows "length ps = length l + length r"
   using assms unfolding partition_by_median_def
   apply (simp add: Let_def min_def split: prod.splits)
-  by (smt partition_length add.assoc)
+  by (metis (no_types, lifting) add.assoc partition_length(1))
 
 lemma partition_by_median_length_2:
   assumes "(l, m, r) = partition_by_median a ps" "0 < length ps"
