@@ -46,7 +46,7 @@ datatype 'k kdt =
 | Node 'k real "'k kdt" "'k kdt"
 
 
-subsection "Definition of the \<open>k\<close>-d Tree Invariant and Related Functions"
+subsection \<open>Definition of the \<open>k\<close>-d Tree Invariant and Related Functions\<close>
 
 fun set_kdt :: "'k kdt \<Rightarrow> ('k point) set" where
   "set_kdt (Leaf p) = { p }"
@@ -98,7 +98,7 @@ lemma invar_set:
   by simp
 
 
-subsection "Lemmas adapted from \<open>HOL-Library.Tree\<close> to \<open>k\<close>-d Tree"
+subsection \<open>Lemmas adapted from \<open>HOL-Library.Tree\<close> to \<open>k\<close>-d Tree\<close>
 
 lemma size_ge0[simp]: 
   "0 < size_kdt kdt"
@@ -322,7 +322,7 @@ next
 qed
 
 
-subsection "Lemmas adapted from \<open>HOL-Library.Tree_Real\<close> to \<open>k\<close>-d Tree"
+subsection \<open>Lemmas adapted from \<open>HOL-Library.Tree_Real\<close> to \<open>k\<close>-d Tree\<close>
 
 lemma size_height_log: 
   "log 2 (size_kdt kdt) \<le> height kdt"

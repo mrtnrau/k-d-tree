@@ -3,7 +3,7 @@
   Author:   Martin Rau, TU München
 *)
 
-section "Range Searching"
+section \<open>Range Searching\<close>
 
 theory Range_Search
 imports 
@@ -11,16 +11,18 @@ imports
 begin
 
 text\<open>
-  Given two \<open>k\<close>-dimensional points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> which bound the search space, the search should return
-  only the points which satisfy the following criteria:
+  Given two \<open>k\<close>-dimensional points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> which bound the search space, the search should 
+  return only the points which satisfy the following criteria:
 
   For every point p in the resulting set: \newline
   \hspace{1cm}  For every axis @{term "k"}: \newline
   \hspace{2cm}    @{term "p\<^sub>0$k \<le> p$k \<and> p$k \<le> p\<^sub>1$k"} \newline
 
-  For a \<open>2\<close>-d tree a query corresponds to selecting all the points in the rectangle which
+  For a \<open>2\<close>-d tree a query corresponds to selecting all the points in the rectangle that
   has \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> as its defining edges.
 \<close>
+
+subsection \<open>Rectangle Definition\<close>
 
 lemma cbox_point_def:
   fixes p\<^sub>0 :: "('k::finite) point"
@@ -35,6 +37,9 @@ proof -
   finally show ?thesis .
 qed
 
+
+subsection \<open>Search Function\<close>
+
 fun search :: "('k::finite) point \<Rightarrow> 'k point \<Rightarrow> 'k kdt \<Rightarrow> 'k point set" where
   "search p\<^sub>0 p\<^sub>1 (Leaf p) = (if p \<in> cbox p\<^sub>0 p\<^sub>1 then { p } else {})"
 | "search p\<^sub>0 p\<^sub>1 (Node k v l r) = (
@@ -46,6 +51,8 @@ fun search :: "('k::finite) point \<Rightarrow> 'k point \<Rightarrow> 'k kdt \<
       search p\<^sub>0 p\<^sub>1 l \<union> search p\<^sub>0 p\<^sub>1 r
   )"
 
+
+subsection \<open>Auxiliary Lemmas\<close>
 
 lemma l_empty:
   assumes "invar (Node k v l r)" "v < p\<^sub>0$k"
@@ -68,6 +75,9 @@ proof -
     using cbox_point_def leD by blast
   thus ?thesis by blast
 qed
+
+
+subsection \<open>Main Theorem\<close>
 
 theorem search_cbox:
   assumes "invar kdt"
