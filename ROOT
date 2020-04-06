@@ -1,9 +1,9 @@
 chapter AFP
 
-session "KDTree" (AFP) = Median_Of_Medians_Selection +
+session "KDTree" (AFP) = "HOL-Analysis" +
   options [timeout = 1000]
   sessions
-    "HOL-Library"
+    Median_Of_Medians_Selection
   theories
     KDTree
     Balanced

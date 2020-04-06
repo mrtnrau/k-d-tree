@@ -18,193 +18,7 @@ text \<open>
   To avoid working with roots I will work with the squared euclidean distance.
 \<close>
 
-subsection "Definition of the Squared Euclidean Distance"
-
-definition sqed' :: "real \<Rightarrow> real \<Rightarrow> real" where
-  "sqed' x y = (x - y) ^ 2"
-
-fun sqed :: "point \<Rightarrow> point \<Rightarrow> real" where
-  "sqed [] [] = 0"
-| "sqed (x # xs) (y # ys) = sqed' x y + sqed xs ys"
-| "sqed _ _ = undefined"
-
-definition min_by_sqed :: "point \<Rightarrow> point \<Rightarrow> point \<Rightarrow> point" where
-  "min_by_sqed p\<^sub>0 p\<^sub>1 q = (
-    if sqed p\<^sub>0 q \<le> sqed p\<^sub>1 q then p\<^sub>0 else p\<^sub>1
-  )"
-
-lemma sqed'_ge_0:
-  "0 \<le> sqed' x y"
-  by (simp add: sqed'_def)
-
-lemma sqed'_eq_0[simp]:
-  "sqed' x y = 0 \<longleftrightarrow> x = y"
-  by (simp add: sqed'_def)
-
-lemma sqed'_com:
-  "sqed' x y = sqed' y x"
-  by (simp add: sqed'_def power2_commute)
-
-lemma inequality:
-  assumes "(x::real) \<le> 0" "y \<le> 0"
-  shows "x\<^sup>2 + y\<^sup>2 \<le> (x + y)\<^sup>2"
-proof -
-  have "x\<^sup>2 + y\<^sup>2 \<le> x\<^sup>2 + 2 * x * y + y\<^sup>2"
-    using assms by (simp add: zero_le_mult_iff)
-  also have "... = (x + y)\<^sup>2"
-    by algebra
-  finally show ?thesis .
-qed
-
-lemma sqed'_split:
-  "x \<le> s \<Longrightarrow> s \<le> y \<Longrightarrow> sqed' x s + sqed' s y \<le> sqed' x y"
-  using inequality[of "x - s" "s - y"] sqed'_def by simp
-
-lemma sqed_ge_0:
-  "dim p\<^sub>0 = dim p\<^sub>1 \<Longrightarrow> 0 \<le> sqed p\<^sub>0 p\<^sub>1"
-  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_ge_0)
-
-lemma sqed_eq_0[simp]:
-  "p\<^sub>0 = p\<^sub>1 \<Longrightarrow> sqed p\<^sub>0 p\<^sub>1 = 0"
-  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) auto
-
-lemma sqed_eq_0_rev:
-  "dim p\<^sub>0 = dim p\<^sub>1 \<Longrightarrow> sqed p\<^sub>0 p\<^sub>1 = 0 \<Longrightarrow> p\<^sub>0 = p\<^sub>1"
-  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: add_nonneg_eq_0_iff sqed'_ge_0 sqed_ge_0)
-
-lemma sqed_com:
-  "sqed p\<^sub>0 p\<^sub>1 = sqed p\<^sub>1 p\<^sub>0"
-  by (induction p\<^sub>0 p\<^sub>1 rule: sqed.induct) (auto simp add: sqed'_com)
-
-
-subsection "The recursive Nearest Neighbor Algorithm"
-
-fun nearest_nbors :: "nat \<Rightarrow> point list \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
-  "nearest_nbors m ns p (Leaf p') = (
-    take m (insort_key (\<lambda>q. sqed q p) p' ns)
-  )"
-| "nearest_nbors m ns p (Node a s l r) = (
-    if p!a \<le> s then
-      let candidates = nearest_nbors m ns p l in
-      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
-        candidates
-      else
-        nearest_nbors m candidates p r
-    else
-      let candidates = nearest_nbors m ns p r in
-      if length candidates = m \<and> sqed p (last candidates) \<le> sqed' s (p!a) then
-        candidates
-      else
-        nearest_nbors m candidates p l
-  )"
-
-
-text \<open>
-  Some intuition about the following auxiliary lemmas.
-
-  Scenario A:
-
-  We are searching for the nearest neighbor of point \<open>p\<close> and have found candidate \<open>c\<close> at axis \<open>a\<close>.
-  Since @{term "sqed c p \<le> sqed' s (p!a)"} we do not need to check the right side.
-
-\begin{alltt}
-                                s
-          c                     |
-                                |
-               p                |
-                                |
-                                |  q
-                                |
-\end{alltt}
-
-  Scenario B:
-  We are searching for the nearest neighbor of point \<open>p\<close> and have found candidate \<open>c\<close> at axis \<open>a\<close>.
-  Since @{term "sqed' s (p!a) < sqed c p"} we do need to check the right side.
-
-\begin{alltt}
-                                s
-          c                     |
-                                |
-                          p     |  q'
-                                |
-                                |  q
-                                |
-\end{alltt}
-
-  The minimize sqed lemma moves \<open>q\<close> to \<open>q'\<close> by setting all coordinates of \<open>q'\<close> (except the current axis \<open>a\<close>)
-  to the coordinates of \<open>p\<close> and minimizes subsequently the distance between \<open>p\<close> and \<open>q'\<close>.
-\<close>
-
-lemma minimize_sqed:
-  assumes "dim p\<^sub>0 = k" "dim p\<^sub>1 = k" "a < k"
-  shows "sqed' (p\<^sub>0!a) (p\<^sub>0[a := (p\<^sub>1!a)]!a) \<le> sqed p\<^sub>0 p\<^sub>1"
-  using assms
-  apply (induction p\<^sub>0 p\<^sub>1 arbitrary: a k rule: sqed.induct)
-  apply (auto simp add: sqed_ge_0 split: nat.splits)
-  by (meson dual_order.trans le_add_same_cancel2 sqed'_ge_0)
-
-lemma cutoff_r:
-  assumes "invar k (Node a s l r)" "dim p = k"
-  assumes "p!a \<le> s" "sqed p c \<le> sqed' (p!a) s"
-  shows "\<forall>q \<in> set_kdt r. sqed p c \<le> sqed p q"
-proof standard
-  fix q
-  assume *: "q \<in> set_kdt r"
-
-  let ?q' = "p[a := (q!a)]"
-
-  have 0: "s \<le> q!a"
-    using * assms(1) invar_r_ge_a by blast
-  have 1: "sqed' (p!a) (?q'!a) \<le> sqed p q"
-    using * minimize_sqed assms(1,2) invar_axis_lt_d invar_dim invar_r by blast
-
-  have "sqed p c \<le> sqed' (p!a) s"
-    using assms(4) by blast
-  also have "... \<le> sqed' (p!a) s + sqed' s (q!a)"
-    using sqed'_ge_0 by simp
-  also have "... \<le> sqed' (p!a) (q!a)"
-    using 0 sqed'_split assms(3) by simp
-  also have "... \<le> sqed p q"
-    using 1 assms(1,2) by simp
-  finally show "sqed p c \<le> sqed p q" .
-qed
-
-lemma cutoff_l:
-  assumes "invar k (Node a s l r)" "dim p = k"
-  assumes "s \<le> p!a" "sqed p c \<le> sqed' s (p!a)"
-  shows "\<forall>q \<in> set_kdt l. sqed p c \<le> sqed p q"
-proof standard
-  fix q
-  assume *: "q \<in> set_kdt l"
-
-  let ?q' = "p[a := (q!a)]"
-
-  have 0: "q!a \<le> s"
-    using * assms(1) invar_l_le_a by blast
-  have 1: "sqed' (p!a) (?q'!a) \<le> sqed p q"
-    using * minimize_sqed assms(1,2) invar_axis_lt_d invar_dim invar_l by blast
-
-  have "sqed p c \<le> sqed' s (p!a)"
-    using assms(4) by blast
-  also have "... \<le> sqed' s (p!a) + sqed' (q!a) s"
-    using sqed'_ge_0 by simp
-  also have "... \<le> sqed' (p!a) (q!a)"
-    using 0 sqed'_split assms(3) by (metis add.commute sqed'_com)
-  also have "... \<le> sqed p q"
-    using 1 assms(1,2) by simp
-  finally show "sqed p c \<le> sqed p q" .
-qed
-
-
-subsection "Auxiliary Lemmas abount \<open>sorted_wrt\<close>"
-
-definition sorted_sqed :: "point \<Rightarrow> point list \<Rightarrow> bool" where
-  "sorted_sqed p \<equiv> sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p)"
-
-definition insort_sqed :: "point \<Rightarrow> point \<Rightarrow> point list \<Rightarrow> point list" where
-  "insort_sqed p \<equiv> insort_key (\<lambda>q. sqed q p)"
-
-declare sorted_sqed_def[simp] insort_sqed_def[simp]
+subsection "Auxiliary Lemmas about \<open>sorted_wrt\<close>"
 
 lemma
   assumes "sorted_wrt f xs"
@@ -217,30 +31,12 @@ proof -
     using sorted_wrt_append by blast+
 qed
 
-lemma sorted_insort_sqed:
-  "sorted_sqed p ms \<Longrightarrow> sorted_sqed p (insort_sqed p p' ms)"
-  apply (induction ms)
-  apply (auto)
-  by (metis insert_iff le_cases set_insort_key)
+definition sorted_wrt_dist :: "('k::finite) point \<Rightarrow> 'k point list \<Rightarrow> bool" where
+  "sorted_wrt_dist p \<equiv> sorted_wrt (\<lambda>p\<^sub>0 p\<^sub>1. dist p\<^sub>0 p \<le> dist p\<^sub>1 p)"
 
-lemma sorted_sqed_take_insort:
-  assumes "sorted_sqed p ms"
-  shows "sorted_sqed p (take m (insort_sqed p p' ms))"
-proof -
-  have "sorted_sqed p (insort_sqed p p' ms)"
-    using assms sorted_insort_sqed by blast
-  thus ?thesis 
-    using sorted_wrt_take by auto
-qed
-
-lemma sorted_sqed_take_drop:
-  assumes "sorted_sqed p ps"
-  shows "\<forall>p\<^sub>0 \<in> set (take n ps). \<forall>p\<^sub>1 \<in> set (drop n ps). sqed p\<^sub>0 p \<le> sqed p\<^sub>1 p"
-  using assms sorted_wrt_append[of _ "take n ps" "drop n ps"] by simp
-
-lemma sorted_sqed_last:
-  assumes "sorted_sqed p ps"
-  shows "\<forall>n \<in> set ps. sqed n p \<le> sqed (last ps) p"
+lemma sorted_wrt_dist_last:
+  assumes "sorted_wrt_dist p ps"
+  shows "\<forall>q \<in> set ps. dist q p \<le> dist (last ps) p"
 proof (cases "ps = []")
   case True
   thus ?thesis by simp
@@ -248,202 +44,351 @@ next
   case False
   then obtain ps' p' where [simp]:"ps = ps' @ [p']"
     using rev_exhaust by blast
-  hence "sorted_sqed p (ps' @ [p'])"
+  hence "sorted_wrt_dist p (ps' @ [p'])"
     using assms by blast
   thus ?thesis
-    using sorted_wrt_append[of _ ps' "[p']"] by simp
+    unfolding sorted_wrt_dist_def using sorted_wrt_append[of _ ps' "[p']"] by simp
 qed
 
-lemma sorted_sqed_take_insort_mono:
-  assumes "sorted_sqed p ms"
-  shows "\<forall>n \<in> set ms \<union> {p'} - set (take m (insort_sqed p p' ms)). \<forall>n' \<in> set (take m (insort_sqed p p' ms)). sqed n' p \<le> sqed n p"
+lemma sorted_wrt_dist_take_drop:
+  assumes "sorted_wrt_dist p ps"
+  shows "\<forall>q \<in> set (drop n ps). \<forall>r \<in> set (take n ps). dist r p \<le> dist q p"
+  using assms unfolding sorted_wrt_dist_def by (metis append_take_drop_id sorted_wrt_append)
+
+lemma sorted_wrt_dist_last_take:
+  assumes "sorted_wrt_dist p ps" "ps \<noteq> []" "0 < n"
+  shows "dist (last (take n ps)) p \<le> dist (last ps) p"
 proof -
-  let ?ms' = "insort_sqed p p' ms"
-  have "set ms \<union> {p'} = set ?ms'"
-    by (simp add: set_insort_key)
-  moreover have "set ?ms' = set (take m ?ms') \<union> set (drop m ?ms')"
-    using append_take_drop_id set_append by metis
-  ultimately have "set ms \<union> {p'} - set (take m ?ms') \<subseteq> set (drop m ?ms')"
-    by blast
-  moreover have "sorted_sqed p ?ms'"
-    using assms sorted_insort_sqed by blast
-  ultimately show ?thesis
-    using sorted_sqed_take_drop by blast
+  have "last (take n ps) \<in> set ps"
+    using assms(2,3) last_in_set[of "take n ps"] by (metis in_set_takeD le0 not_le take_eq_Nil)
+  thus ?thesis
+    using sorted_wrt_dist_last assms(1) by blast
 qed
 
-lemma sorted_sqed_last_take_mono:
-  assumes "sorted_sqed p ms" "m \<le> length ms" "0 < m"
-  shows "sqed (last (take m ms)) p \<le> sqed (last ms) p"
-  using assms by (induction ms arbitrary: m) (auto simp add: take_Cons')
 
-lemma sorted_sqed_last_insort_eq:
-  assumes "sorted_sqed p ms" "insort_sqed p p' ms \<noteq> ms @ [p']"
-  shows "last (insort_sqed p p' ms) = last ms"
-  using assms by (induction ms) (auto)
+subsection "Neighbors Sorted by Distance"
 
-lemma sorted_sqed_last_take_insort_mono:
-  assumes "sorted_sqed p ms" "m \<le> length ms" "0 < m"
-  shows "sqed (last (take m (insort_sqed p p' ms))) p \<le> sqed (last ms) p"
-proof -
-  let ?ms' = "insort_sqed p p' ms"
-  show "sqed (last (take m ?ms')) p \<le> sqed (last ms) p"
-  proof (cases "?ms' = ms @ [p']")
-    case True
-    thus ?thesis
-      using assms sorted_sqed_last_take_mono by auto
+fun upd_nbors :: "nat \<Rightarrow> ('k::finite) point \<Rightarrow> 'k point \<Rightarrow> 'k point list \<Rightarrow> 'k point list" where
+  "upd_nbors 0 _ _ ps = []"
+| "upd_nbors _ _ q [] = [q]"
+| "upd_nbors m r q (p # ps) = (
+    if dist q r \<le> dist p r then
+      if m = 1 then [q]
+      else q # p # take (m - 2) ps
+    else
+      p # upd_nbors (m - 1) r q ps
+  )"
+
+lemma length_nbors: 
+  "length (upd_nbors m r q ps) = min m (length ps + 1)"
+  by (induction m r q ps rule: upd_nbors.induct) auto
+
+lemma length_nbors_eq_m:
+  "set ps - set (upd_nbors m r q ps) \<noteq> {} \<Longrightarrow> length (upd_nbors m r q ps) = m"
+  by (induction m r q ps rule: upd_nbors.induct) (auto simp: min_def, blast+)
+
+lemma set_nbors:
+  "length ps < m \<Longrightarrow> set (upd_nbors m r q ps) = set ps \<union> { q }"
+  by (induction m r q ps rule: upd_nbors.induct) auto
+
+lemma subset_nbors:
+  "set (upd_nbors m r q ps) \<subseteq> set ps \<union> { q }"
+  by (induction m r q ps rule: upd_nbors.induct) (auto, meson in_set_takeD)
+
+lemma distinct_nbors:
+  "distinct ps \<Longrightarrow> q \<notin> set ps \<Longrightarrow> distinct (upd_nbors m r q ps)"
+  apply (induction m r q ps rule: upd_nbors.induct)
+  apply (auto, simp_all add: in_set_takeD)
+  using subset_nbors by fastforce
+
+lemma sorted_wrt_dist_nbors:
+  "sorted_wrt_dist r ps \<Longrightarrow> sorted_wrt_dist r (upd_nbors m r q ps)"
+proof (induction m r q ps rule: upd_nbors.induct)
+  case (3 m r q p ps)
+  show ?case
+  proof cases
+    assume "dist q r \<le> dist p r"
+    thus ?case
+      using "3.prems" sorted_wrt_take in_set_takeD unfolding sorted_wrt_dist_def
+      by (auto, fastforce, blast)
   next
-    case False
-    hence EQ: "last ?ms' = last ms"
-      using sorted_sqed_last_insort_eq assms by simp
-    have "sqed (last (take m ?ms')) p \<le> sqed (last ?ms') p"
-      using assms sorted_sqed_last_take_mono sorted_insort_sqed by simp
-    thus ?thesis
-      using EQ by simp
+    assume *: "\<not> dist q r \<le> dist p r"
+    moreover have "\<forall>s \<in> set (p # ps). dist p r \<le> dist s r"
+      using "3.prems" by (simp add: sorted_wrt_dist_def)
+    ultimately have "\<forall>s \<in> set (upd_nbors m r q ps). dist p r \<le> dist s r"
+      using subset_nbors by fastforce
+    thus ?case
+      using * 3 by (simp add: sorted_wrt_dist_def)
   qed
+qed (auto simp: sorted_wrt_dist_def)
+
+lemma dist_nbors_q:
+  assumes "sorted_wrt_dist r ps" "q \<notin> set (upd_nbors m r q ps)" "0 < m"
+  shows "dist (last (upd_nbors m r q ps)) r \<le> dist q r"
+  using assms unfolding sorted_wrt_dist_def
+  by (induction m r q ps rule: upd_nbors.induct) auto
+
+lemma dist_nbors_ps:
+  assumes "sorted_wrt_dist r ps" "0 < m"
+  shows "\<forall>p \<in> set ps - set (upd_nbors m r q ps). dist (last (upd_nbors m r q ps)) r \<le> dist p r"
+  using assms
+proof (induction m r q ps rule: upd_nbors.induct)
+  case (3 m r q p ps)
+  show ?case
+  proof cases
+    assume *: "dist q r \<le> dist p r"
+    show ?case
+    proof cases
+      assume "0 < m"
+      have "\<forall>s \<in> set (drop (m - 2) (p # ps)). dist (last (take (m - 2) (p # ps))) r \<le> dist s r"
+        using sorted_wrt_dist_take_drop[OF "3.prems"(1), of "m - 2"] last_in_set sledgehammer
+      hence "\<forall>s \<in> set (drop (m - 1) ps). dist (last (upd_nbors (Suc m) r q (p # ps))) r \<le> dist s r"
+        using * \<open>0 < m\<close> "3.prems"(1) by (auto simp: sorted_wrt_dist_def)
+      moreover have "set (p # ps) - set (upd_nbors (Suc m) r q (p # ps)) \<subseteq> set (drop (m - 1) ps)"
+        using * \<open>0 < m\<close> by (auto, metis UnE append_take_drop_id set_append)
+      ultimately show ?case
+        by blast
+    next
+      assume "\<not> 0 < m"
+      thus ?case
+        using * 3 by (auto simp: sorted_wrt_dist_def)
+  next
+    assume *: "\<not> dist q r \<le> dist p r"
+    moreover have 0: "\<forall>s \<in> set (p # ps). dist p r \<le> dist s r"
+      using "3.prems" by (simp add: sorted_wrt_dist_def)
+    ultimately have 1: "\<forall>s \<in> set (upd_nbors m r q ps). dist p r \<le> dist s r"
+      using subset_nbors by fastforce
+    thus ?case
+    proof cases
+      assume "0 < m"
+      hence "\<forall>p \<in> set ps - set (upd_nbors m r q ps). dist (last (upd_nbors m r q ps)) r \<le> dist p r"
+        using * 3 by (simp add: sorted_wrt_dist_def)
+      thus ?case
+        using * \<open>0 < m\<close> 0 1 "3.prems"(2) by auto
+    next
+      assume "\<not> 0 < m"
+      thus ?case
+        using * 0 by simp
+    qed
+  qed
+qed simp_all
+ 
+lemma dist_nbors_length:
+  assumes "sorted_wrt_dist p ps" "m \<le> length ps" "0 < m"
+  shows "dist (last (upd_nbors m p q ps)) p \<le> dist (last ps) p"
+  using assms
+proof (induction m p q ps rule: upd_nbors.induct)
+  case (3 m r q p ps)
+  then show ?case
+  proof cases
+    assume "dist q r \<le> dist p r"
+    thus ?case
+      using 3 apply (auto)
+      apply (simp add: order_trans sorted_wrt_dist_def)+
+      by (metis diff_is_0_eq last_in_set set_take_subset sorted_wrt_dist_def sorted_wrt_dist_last subsetD take_eq_Nil)
+  next
+    assume *: "\<not> dist q r \<le> dist p r"
+    moreover have 0: "\<forall>s \<in> set (p # ps). dist p r \<le> dist s r"
+      using "3.prems" by (simp add: sorted_wrt_dist_def)
+    ultimately have 1: "\<forall>s \<in> set (upd_nbors m r q ps). dist p r \<le> dist s r"
+      using subset_nbors by fastforce
+    thus ?case
+    proof cases
+      assume "0 < m"
+      hence "dist (last (upd_nbors m r q ps)) r \<le> dist (last ps) r"
+        using * 3 by (simp add: sorted_wrt_dist_def)
+      thus ?case
+        using * \<open>0 < m\<close> 0 1 "3.prems"(2) by auto
+    next
+      assume "\<not> 0 < m"
+      thus ?case
+        using * 0 by simp
+    qed
+  qed
+qed auto
+
+
+subsection "The Recursive Nearest Neighbor Algorithm"
+
+fun nearest_nbors :: "nat \<Rightarrow> ('k::finite) point list \<Rightarrow> 'k point \<Rightarrow> 'k kdt \<Rightarrow> 'k point list" where
+  "nearest_nbors m ps p (Leaf q) = (
+    upd_nbors m p q ps
+  )"
+| "nearest_nbors m ps p (Node k v l r) = (
+    if p$k \<le> v then
+      let candidates = nearest_nbors m ps p l in
+      if length candidates = m \<and> dist p (last candidates) \<le> dist v (p$k) then
+        candidates
+      else
+        nearest_nbors m candidates p r
+    else
+      let candidates = nearest_nbors m ps p r in
+      if length candidates = m \<and> dist p (last candidates) \<le> dist v (p$k) then
+        candidates
+      else
+        nearest_nbors m candidates p l
+  )"
+
+lemma cutoff_r:
+  assumes "invar (Node k v l r)"
+  assumes "p$k \<le> v" "dist p c \<le> dist (p$k) v"
+  shows "\<forall>q \<in> set_kdt r. dist p c \<le> dist p q"
+proof standard
+  fix q
+  assume *: "q \<in> set_kdt r"
+  have "dist p c \<le> dist (p$k) v"
+    using assms(3) by blast
+  also have "... \<le> dist (p$k) v + dist v (q$k)"
+    by simp
+  also have "... = dist (p$k) (q$k)"
+    using * assms(1,2) dist_real_def by auto
+  also have "... \<le> dist p q"
+    using dist_vec_nth_le by blast
+  finally show "dist p c \<le> dist p q" .
+qed
+
+lemma cutoff_l:
+  assumes "invar (Node k v l r)"
+  assumes "v \<le> p$k" "dist p c \<le> dist v (p$k)"
+  shows "\<forall>q \<in> set_kdt l. dist p c \<le> dist p q"
+proof standard
+  fix q
+  assume *: "q \<in> set_kdt l"
+  have "dist p c \<le> dist v (p$k)"
+    using assms(3) by blast
+  also have "... \<le> dist v (p$k) + dist (q$k) v"
+    by simp
+  also have "... = dist (p$k) (q$k)"
+    using * assms(1,2) dist_real_def by auto
+  also have "... \<le> dist p q"
+    using dist_vec_nth_le by blast
+  finally show "dist p c \<le> dist p q" .
 qed
 
 
 subsection "The Main Theorems"
 
 lemma mnn_length:
-  "length (nearest_nbors m ms p kdt) = min m (size_kdt kdt + length ms)"
-  by (induction kdt arbitrary: ms) (auto simp add: Let_def)
+  "length (nearest_nbors m ps p kdt) = min m (size_kdt kdt + length ps)"
+  by (induction kdt arbitrary: ps) (auto simp: Let_def length_nbors)
 
 lemma mnn_length_gt_0:
-  assumes "0 < m"
-  shows "0 < length (nearest_nbors m ms p kdt)"
-  using assms by (induction kdt arbitrary: ms) (auto simp add: Let_def)
+  "0 < m \<Longrightarrow> 0 < length (nearest_nbors m ps p kdt)"
+  by (induction kdt arbitrary: ps) (auto simp: Let_def length_nbors)
 
 lemma mnn_length_gt_eq_m:
-  assumes "(set_kdt kdt \<union> set ms) - set (nearest_nbors m ms p kdt) \<noteq> {}"
-  shows "length (nearest_nbors m ms p kdt) = m"
-  using assms mnn_length set_insort_key
-  apply (induction kdt arbitrary: ms)
-  apply (auto simp add: min_def Let_def)
-  by fastforce+
+  assumes "(set_kdt kdt \<union> set ps) - set (nearest_nbors m ps p kdt) \<noteq> {}"
+  shows "length (nearest_nbors m ps p kdt) = m"
+  using assms
+  apply (induction kdt arbitrary: ps)
+  apply (auto simp: length_nbors_eq_m length_nbors set_nbors min_def)
+  apply (metis UnCI insertI1 le_SucI not_less set_nbors)
+  apply (smt le_add2 min_def mnn_length subsetD)+
+  done
 
 lemma mnn_sorted:
-  assumes "sorted_sqed p ms"
-  shows "sorted_sqed p (nearest_nbors m ms p kdt)"
-  using assms sorted_sqed_take_insort
-  by (induction kdt arbitrary: ms) (auto simp add: Let_def)
+  assumes "sorted_wrt_dist p ps"
+  shows "sorted_wrt_dist p (nearest_nbors m ps p kdt)"
+  using assms sorted_wrt_dist_nbors
+  by (induction kdt arbitrary: ps) (auto simp: Let_def)
 
 lemma mnn_set:
-  shows "set (nearest_nbors m ms p kdt) \<subseteq> set_kdt kdt \<union> set ms"
-  using set_insort_key in_set_takeD
-  apply (induction kdt arbitrary: ms)
-  apply (auto simp add: Let_def)
-  by fastforce
+  shows "set (nearest_nbors m ps p kdt) \<subseteq> set_kdt kdt \<union> set ps"
+  using subset_nbors
+  by (induction kdt arbitrary: ps) (auto simp: Let_def, fastforce)
 
 lemma mnn_distinct:
-  assumes "invar k kdt" "dim p = k" "distinct ms" "set ms \<inter> set_kdt kdt = {}"
-  shows "distinct (nearest_nbors m ms p kdt)"
+  assumes "invar kdt" "distinct ps" "set ps \<inter> set_kdt kdt = {}"
+  shows "distinct (nearest_nbors m ps p kdt)"
   using assms
-proof (induction kdt arbitrary: ms)
+proof (induction kdt arbitrary: ps)
   case (Leaf p')
   thus ?case
-    by (simp add: distinct_insort)
+    by (simp add: distinct_nbors)
 next
   case (Node a s l r)
-
-  let ?cl = "nearest_nbors m ms p l"
-  let ?cr = "nearest_nbors m ms p r"
-
-  have "set ms \<inter> set_kdt l = {} \<and> set ms \<inter> set_kdt r = {}"
-    using Node.prems(4) by auto
+  let ?cl = "nearest_nbors m ps p l"
+  let ?cr = "nearest_nbors m ps p r"
+  have "set ps \<inter> set_kdt l = {} \<and> set ps \<inter> set_kdt r = {}"
+    using Node.prems(3) by auto
   hence DCLR: "distinct ?cl \<and> distinct ?cr"
     using Node.IH(1,2) Node.prems(1,2,3) invar_l invar_r by blast
-
   have "set ?cl \<inter> set_kdt r = {} \<and> set ?cr \<inter> set_kdt l = {}"
-    using Node.prems(1,4) mnn_set invar_distinct by fastforce
+    using Node.prems(1,3) mnn_set by fastforce
   hence "distinct (nearest_nbors m ?cl p r) \<and> distinct (nearest_nbors m ?cr p l)"
     using Node.IH(1,2) Node.prems(1,2) DCLR invar_l invar_r by blast
-
   thus ?case 
     using DCLR by (auto simp add: Let_def)
 qed
 
-lemma mnn_le_last_ms:
-  assumes "invar k kdt" "dim p = k" "sorted_sqed p ms" "m \<le> length ms" "0 < m"
-  shows "sqed (last (nearest_nbors m ms p kdt)) p \<le> sqed (last ms) p"
+lemma mnn_le_last_ps:
+  assumes "invar kdt" "sorted_wrt_dist p ps" "m \<le> length ps" "0 < m"
+  shows "dist (last (nearest_nbors m ps p kdt)) p \<le> dist (last ps) p"
   using assms
-proof (induction kdt arbitrary: ms)
+proof (induction kdt arbitrary: ps)
   case (Leaf p')
-
-  let ?ms' = "take m (insort_sqed p p' ms)"
-
-  have "sorted_sqed p ?ms'"
-    using Leaf.prems(3) sorted_sqed_take_insort by simp
-  hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ?ms') p"
-    using sorted_sqed_last by blast
-  hence "\<forall>n \<in> set ?ms'. sqed n p \<le> sqed (last ms) p"
-    using Leaf.prems(3,4,5) sorted_sqed_last_take_insort_mono[of p ms m p'] order_trans by blast
   thus ?case
-    using Leaf.prems(5) by simp
+    by (simp add: dist_nbors_length)
 next
   case (Node a s l r)
-
-  let ?cl = "nearest_nbors m ms p l"
-  let ?cr = "nearest_nbors m ms p r"
-
+  let ?cl = "nearest_nbors m ps p l"
+  let ?cr = "nearest_nbors m ps p r"
   have "m \<le> length ?cl"
-    using mnn_length Node.prems(4) by auto
-  hence "sqed (last (nearest_nbors m ?cl p r)) p \<le> sqed (last ?cl) p"
-    using mnn_sorted Node.IH(2) Node.prems(1,2,3,5) invar_r by blast
-  hence IHLR: "sqed (last (nearest_nbors m ?cl p r)) p \<le> sqed (last ms) p"
-    using Node.IH(1)[of ms] Node.prems invar_l mnn_length_gt_0 by (meson order_trans)
-
+    using Node.prems(3) by (simp add: mnn_length)
+  hence "dist (last (nearest_nbors m ?cl p r)) p \<le> dist (last ?cl) p"
+    using mnn_sorted Node.IH(2) Node.prems(1,2,3,4) invar_r by blast
+  hence IHLR: "dist (last (nearest_nbors m ?cl p r)) p \<le> dist (last ps) p"
+    using Node.IH(1)[of ps] Node.prems invar_l mnn_length_gt_0 by auto
   have "m \<le> length ?cr"
-    using mnn_length Node.prems(4) by auto
-  hence "sqed (last (nearest_nbors m ?cr p l)) p \<le> sqed (last ?cr) p"
-    using mnn_sorted Node.IH(1) Node.prems(1,2,3,5) invar_l by blast
-  hence IHRL: "sqed (last (nearest_nbors m ?cr p l)) p \<le> sqed (last ms) p"
-    using Node.IH(2)[of ms] Node.prems invar_r mnn_length_gt_0 by (meson order_trans)
-
+    using Node.prems(3) by (simp add: mnn_length)
+  hence "dist (last (nearest_nbors m ?cr p l)) p \<le> dist (last ?cr) p"
+    using mnn_sorted Node.IH(1) Node.prems(1,2,3,4) invar_l by blast
+  hence IHRL: "dist (last (nearest_nbors m ?cr p l)) p \<le> dist (last ps) p"
+    using Node.IH(2)[of ps] Node.prems invar_r mnn_length_gt_0 by auto
   show ?case 
     using Node IHLR IHRL by (auto simp add: Let_def)
 qed
 
-theorem mnn_sqed:
-  assumes "invar k kdt" "dim p = k"
-  assumes "sorted_sqed p ms" "set ms \<inter> set_kdt kdt = {}" "distinct ms" "0 < m"
-  shows "\<forall>q \<in> set_kdt kdt \<union> set ms - set (nearest_nbors m ms p kdt). sqed (last (nearest_nbors m ms p kdt)) p \<le> sqed q p"
+theorem mnn_dist:
+  assumes "invar kdt" "sorted_wrt_dist p ms" "set ms \<inter> set_kdt kdt = {}" "distinct ms" "0 < m"
+  shows "\<forall>q \<in> set_kdt kdt \<union> set ms - set (nearest_nbors m ms p kdt). dist (last (nearest_nbors m ms p kdt)) p \<le> dist q p"
   using assms
 proof (induction kdt arbitrary: ms)
   case (Leaf p')
   thus ?case
-    using sorted_sqed_take_insort_mono by simp
+    using dist_nbors_q dist_nbors_ps by force
 next
   case (Node a s l r)
 
   let ?cl = "nearest_nbors m ms p l"
   let ?cr = "nearest_nbors m ms p r"
 
-  have IHL: "\<forall>q \<in> set_kdt l \<union> set ms - set ?cl. sqed (last ?cl) p \<le> sqed q p"
-    using Node.IH(1) Node.prems invar_l invar_set by blast
-  have IHR: "\<forall>q \<in> set_kdt r \<union> set ms - set ?cr. sqed (last ?cr) p \<le> sqed q p"
-    using Node.IH(2) Node.prems invar_r invar_set by blast
+  have IHL: "\<forall>q \<in> set_kdt l \<union> set ms - set ?cl. dist (last ?cl) p \<le> dist q p"
+    using Node.IH(1) Node.prems invar_l invar_set by auto
+  have IHR: "\<forall>q \<in> set_kdt r \<union> set ms - set ?cr. dist (last ?cr) p \<le> dist q p"
+    using Node.IH(2) Node.prems invar_r invar_set by auto
 
-  have SORTED_L: "sorted_sqed p ?cl"
-    using mnn_sorted Node.prems(3) by blast
-  have SORTED_R: "sorted_sqed p ?cr"
-    using mnn_sorted Node.prems(3) by blast
+  have SORTED_L: "sorted_wrt_dist p ?cl"
+    using mnn_sorted Node.prems(2) by blast
+  have SORTED_R: "sorted_wrt_dist p ?cr"
+    using mnn_sorted Node.prems(2) by blast
 
   have DISTINCT_L: "distinct ?cl"
-    using Node.prems(1,2,4,5) mnn_distinct invar_set invar_l by blast
+    using Node.prems mnn_distinct invar_set invar_l by fastforce
   have DISTINCT_R: "distinct ?cr"
-    using Node.prems(1,2,4,5) mnn_distinct invar_set invar_r by blast
+    using Node.prems mnn_distinct invar_set invar_r
+    by (metis inf_bot_right inf_sup_absorb inf_sup_aci(3) sup.commute)
 
-  consider (A) "p!a \<le> s \<and> length ?cl = m \<and> sqed p (last ?cl) \<le> sqed' s (p!a)"
-         | (B) "p!a \<le> s \<and> \<not>(length ?cl = m \<and> sqed p (last ?cl) \<le> sqed' s (p!a))"
-         | (C) "s < p!a \<and> length ?cr = m \<and> sqed p (last ?cr) \<le> sqed' s (p!a)"
-         | (D) "s < p!a \<and> \<not>(length ?cr = m \<and> sqed p (last ?cr) \<le> sqed' s (p!a))"
+  consider (A) "p$a \<le> s \<and> length ?cl = m \<and> dist p (last ?cl) \<le> dist s (p$a)"
+         | (B) "p$a \<le> s \<and> \<not>(length ?cl = m \<and> dist p (last ?cl) \<le> dist s (p$a))"
+         | (C) "s < p$a \<and> length ?cr = m \<and> dist p (last ?cr) \<le> dist s (p$a)"
+         | (D) "s < p$a \<and> \<not>(length ?cr = m \<and> dist p (last ?cr) \<le> dist s (p$a))"
     by argo
   thus ?case
   proof cases
     case A
-    hence "\<forall>q \<in> set_kdt r. sqed (last ?cl) p \<le> sqed q p"
-      using Node.prems(1,2) cutoff_r by (metis sqed'_com sqed_com)
+    hence "\<forall>q \<in> set_kdt r. dist (last ?cl) p \<le> dist q p"
+      using Node.prems(1,2) cutoff_r by (metis dist_commute)
     thus ?thesis
       using IHL A by auto
   next
@@ -451,51 +396,53 @@ next
 
     let ?mnn = "nearest_nbors m ?cl p r"
 
-    have "set ?cl \<subseteq> set_kdt l \<union> set ms \<and> set ms \<inter> set_kdt r = {}"
-      using mnn_set Node.prems(1,4) by auto
-    hence IHLR: "\<forall>q \<in> set_kdt r \<union> set ?cl - set ?mnn. sqed (last ?mnn) p \<le> sqed q p"
-      using SORTED_L DISTINCT_L Node.IH(2) Node.prems(1,2,6) invar_r invar_distinct by blast
+    have "set ?cl \<subseteq> set_kdt l \<union> set ms" "set ms \<inter> set_kdt r = {}"
+      using mnn_set Node.prems(1,3) by (simp add: mnn_set disjoint_iff_not_equal)+
+    hence "set ?cl \<inter> set_kdt r = {}"
+      using Node.prems(1) by fastforce
+    hence IHLR: "\<forall>q \<in> set_kdt r \<union> set ?cl - set ?mnn. dist (last ?mnn) p \<le> dist q p"
+      using Node.IH(2)[OF _ SORTED_L _ DISTINCT_L Node.prems(5)] Node.prems(1) invar_r by blast
 
-    have "\<forall>n \<in> set ms - set ?cl. sqed (last ?mnn) p \<le> sqed n p"
+    have "\<forall>n \<in> set ms - set ?cl. dist (last ?mnn) p \<le> dist n p"
     proof standard
       fix n
       assume *: "n \<in> set ms - set ?cl"
 
       hence "length ?cl = m"
         using mnn_length_gt_eq_m by blast
-      hence LAST: "sqed (last ?mnn) p \<le> sqed (last ?cl) p"
-        using mnn_le_last_ms SORTED_L invar_r Node.prems(1,2,6) by (metis order_refl)
-      have "sqed (last ?cl) p \<le> sqed n p"
+      hence LAST: "dist (last ?mnn) p \<le> dist (last ?cl) p"
+        using mnn_le_last_ps SORTED_L invar_r Node.prems(1,2,5) by (metis order_refl)
+      have "dist (last ?cl) p \<le> dist n p"
         using IHL * by blast
-      thus "sqed (last ?mnn) p \<le> sqed n p"
+      thus "dist (last ?mnn) p \<le> dist n p"
         using LAST by argo
     qed
-    hence R: "\<forall>q \<in> set_kdt r \<union> set ms - set ?mnn. sqed (last ?mnn) p \<le> sqed q p"
+    hence R: "\<forall>q \<in> set_kdt r \<union> set ms - set ?mnn. dist (last ?mnn) p \<le> dist q p"
       using IHLR by auto
 
-    have "\<forall>q \<in> set_kdt l - set ?cl. sqed (last ?mnn) p \<le> sqed q p"
+    have "\<forall>q \<in> set_kdt l - set ?cl. dist (last ?mnn) p \<le> dist q p"
     proof standard
       fix q
       assume *: "q \<in> set_kdt l - set ?cl"
 
       hence "length ?cl = m"
         using mnn_length_gt_eq_m by blast
-      hence LAST: "sqed (last ?mnn) p \<le> sqed (last ?cl) p"
-        using mnn_le_last_ms SORTED_L invar_r Node.prems(1,2,6) by (metis order_refl)
-      have "sqed (last ?cl) p \<le> sqed q p"
+      hence LAST: "dist (last ?mnn) p \<le> dist (last ?cl) p"
+        using mnn_le_last_ps SORTED_L invar_r Node.prems(1,2,5) by (metis order_refl)
+      have "dist (last ?cl) p \<le> dist q p"
         using IHL * by blast
-      thus "sqed (last ?mnn) p \<le> sqed q p"
+      thus "dist (last ?mnn) p \<le> dist q p"
         using LAST by argo
     qed
-    hence L: "\<forall>q \<in> set_kdt l - set ?mnn. sqed (last ?mnn) p \<le> sqed q p"
+    hence L: "\<forall>q \<in> set_kdt l - set ?mnn. dist (last ?mnn) p \<le> dist q p"
       using IHLR by blast
 
     show ?thesis
       using B R L by auto
   next
     case C
-    hence "\<forall>q \<in> set_kdt l. sqed (last ?cr) p \<le> sqed q p"
-      using Node.prems(1,2) cutoff_l[of k a s l r p "last ?cr"] sqed_com by fastforce
+    hence "\<forall>q \<in> set_kdt l. dist (last ?cr) p \<le> dist q p"
+      using Node.prems(1,2) cutoff_l by (metis dist_commute less_imp_le)
     thus ?thesis
       using IHR C by auto
   next
@@ -503,43 +450,45 @@ next
 
     let ?mnn = "nearest_nbors m ?cr p l"
 
-    have "set ?cr \<subseteq> set_kdt r \<union> set ms \<and> set ms \<inter> set_kdt l = {}"
-      using mnn_set Node.prems(1,4) by auto
-    hence IHRL: "\<forall>q \<in> set_kdt l \<union> set ?cr - set ?mnn. sqed (last ?mnn) p \<le> sqed q p"
-      using SORTED_R DISTINCT_R Node.IH(1) Node.prems(1,2,6) invar_l invar_distinct by blast
+    have "set ?cr \<subseteq> set_kdt r \<union> set ms" "set ms \<inter> set_kdt l = {}"
+      using mnn_set Node.prems(1,3) by (simp add: mnn_set disjoint_iff_not_equal)+
+    hence "set ?cr \<inter> set_kdt l = {}"
+      using Node.prems(1) by fastforce
+    hence IHRL: "\<forall>q \<in> set_kdt l \<union> set ?cr - set ?mnn. dist (last ?mnn) p \<le> dist q p"
+      using Node.IH(1)[OF _ SORTED_R _ DISTINCT_R Node.prems(5)] Node.prems(1) invar_l by blast
 
-    have "\<forall>n \<in> set ms - set ?cr. sqed (last ?mnn) p \<le> sqed n p"
+    have "\<forall>n \<in> set ms - set ?cr. dist (last ?mnn) p \<le> dist n p"
     proof standard
       fix n
       assume *: "n \<in> set ms - set ?cr"
 
       hence "length ?cr = m"
         using mnn_length_gt_eq_m by blast
-      hence LAST: "sqed (last ?mnn) p \<le> sqed (last ?cr) p"
-        using mnn_le_last_ms SORTED_R invar_l Node.prems(1,2,6) by (metis order_refl)
-      have "sqed (last ?cr) p \<le> sqed n p"
+      hence LAST: "dist (last ?mnn) p \<le> dist (last ?cr) p"
+        using mnn_le_last_ps SORTED_R invar_l Node.prems(1,2,5) by (metis order_refl)
+      have "dist (last ?cr) p \<le> dist n p"
         using IHR * by blast
-      thus "sqed (last ?mnn) p \<le> sqed n p"
+      thus "dist (last ?mnn) p \<le> dist n p"
         using LAST by argo
     qed
-    hence R: "\<forall>q \<in> set_kdt l \<union> set ms - set ?mnn. sqed (last ?mnn) p \<le> sqed q p"
+    hence R: "\<forall>q \<in> set_kdt l \<union> set ms - set ?mnn. dist (last ?mnn) p \<le> dist q p"
       using IHRL by auto
 
-    have "\<forall>q \<in> set_kdt r - set ?cr. sqed (last ?mnn) p \<le> sqed q p"
+    have "\<forall>q \<in> set_kdt r - set ?cr. dist (last ?mnn) p \<le> dist q p"
     proof standard
       fix q
       assume *: "q \<in> set_kdt r - set ?cr"
 
       hence "length ?cr = m"
         using mnn_length_gt_eq_m by blast
-      hence LAST: "sqed (last ?mnn) p \<le> sqed (last ?cr) p"
-        using mnn_le_last_ms SORTED_R invar_l Node.prems(1,2,6) by (metis order_refl)
-      have "sqed (last ?cr) p \<le> sqed q p"
+      hence LAST: "dist (last ?mnn) p \<le> dist (last ?cr) p"
+        using mnn_le_last_ps SORTED_R invar_l Node.prems(1,2,5) by (metis order_refl)
+      have "dist (last ?cr) p \<le> dist q p"
         using IHR * by blast
-      thus "sqed (last ?mnn) p \<le> sqed q p" 
+      thus "dist (last ?mnn) p \<le> dist q p" 
         using LAST by argo
     qed
-    hence L: "\<forall>q \<in> set_kdt r - set ?mnn. sqed (last ?mnn) p \<le> sqed q p"
+    hence L: "\<forall>q \<in> set_kdt r - set ?mnn. dist (last ?mnn) p \<le> dist q p"
       using IHRL by blast
 
     show ?thesis 
@@ -550,43 +499,44 @@ qed
 
 subsection "Nearest Neighbors Definition and Theorems"
 
-definition nearest_neighbors :: "nat \<Rightarrow> point \<Rightarrow> kdt \<Rightarrow> point list" where
+definition nearest_neighbors :: "nat \<Rightarrow> ('k::finite) point \<Rightarrow> 'k kdt \<Rightarrow> 'k point list" where
   "nearest_neighbors m p kdt = nearest_nbors m [] p kdt"
 
 theorem nearest_neighbors_length:
   "length (nearest_neighbors m p kdt) = min m (size_kdt kdt)"
-  using mnn_length nearest_neighbors_def by simp
+  by (simp add: mnn_length nearest_neighbors_def)
 
 theorem nearest_neighbors_sorted:
-  "sorted_sqed p (nearest_neighbors m p kdt)"
-  using mnn_sorted nearest_neighbors_def by simp
+  "sorted_wrt_dist p (nearest_neighbors m p kdt)"
+  using mnn_sorted unfolding nearest_neighbors_def sorted_wrt_dist_def by force
 
 theorem nearest_neighbors_set:
   "set (nearest_neighbors m p kdt) \<subseteq> set_kdt kdt"
-  using mnn_set nearest_neighbors_def by fastforce
+  unfolding nearest_neighbors_def using mnn_set by force
 
 theorem nearest_neighbors_distinct:
-  assumes "invar k kdt" "dim p = k"
+  assumes "invar kdt"
   shows "distinct (nearest_neighbors m p kdt)"
-  using assms mnn_distinct nearest_neighbors_def by simp
+  using assms by (simp add: mnn_distinct nearest_neighbors_def)
 
 theorem nearest_neighbors:
-  assumes "invar k kdt" "dim p = k" "nearest_neighbors m p kdt = mns"
-  shows "\<forall>q \<in> (set_kdt kdt - set mns). \<forall>n \<in> set mns. sqed n p \<le> sqed q p"
+  assumes "invar kdt" "mns = nearest_neighbors m p kdt"
+  shows "\<forall>q \<in> (set_kdt kdt - set mns). \<forall>n \<in> set mns. dist n p \<le> dist q p"
 proof (cases "0 < m")
   case True
-  hence "\<forall>q \<in> set_kdt kdt - set mns. sqed (last mns) p \<le> sqed q p"
-    using assms nearest_neighbors_def mnn_sqed by auto
-  hence "\<forall>q \<in> set_kdt kdt - set mns. \<forall>n \<in> set mns. sqed n p \<le> sqed q p"
-    using assms(3) nearest_neighbors_sorted[of p m kdt] sorted_sqed_last[of p mns] by force
+  have "\<forall>q \<in> set_kdt kdt - set mns. dist (last mns) p \<le> dist q p"
+    using nearest_neighbors_def mnn_dist[OF assms(1), of p "[]", OF _ _ _ True] assms(2)
+    by (simp add: nearest_neighbors_def sorted_wrt_dist_def)
+  hence "\<forall>q \<in> set_kdt kdt - set mns. \<forall>n \<in> set mns. dist n p \<le> dist q p"
+    using assms(2) nearest_neighbors_sorted[of p m kdt] sorted_wrt_dist_last[of p mns] by force
   thus ?thesis
     using nearest_neighbors_def by blast
 next
   case False
-  hence "m = 0"
-    by simp
+  hence "length mns = 0"
+    using assms(2) unfolding nearest_neighbors_def by (auto simp: mnn_length)    
   thus ?thesis
-    using assms(3) nearest_neighbors_def mnn_length_gt_eq_m by fastforce
+    by simp
 qed
 
 end

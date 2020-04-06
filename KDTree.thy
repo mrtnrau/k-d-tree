@@ -8,106 +8,93 @@ section "Definition of the \<open>k\<close>-d Tree"
 theory KDTree
 imports
   Complex_Main
+  "HOL-Analysis.Finite_Cartesian_Product"
+  "HOL-Analysis.Topology_Euclidean_Space"
 begin
 
 
 text \<open>
   A \<open>k\<close>-d tree is a space-partitioning data structure for organizing points in a \<open>k\<close>-dimensional space.
   In principle the \<open>k\<close>-d tree is a binary tree. The leafs hold the \<open>k\<close>-dimensional points and the nodes
-  contain left and right subtrees as well as a discriminator \<open>s\<close> at a particular axis \<open>a\<close>.
+  contain left and right subtrees as well as a discriminator \<open>v\<close> at a particular axis \<open>k\<close>.
   Every node divides the space into two parts by splitting along a hyperplane.
-  Consider a node \<open>n\<close> with associated discriminator \<open>s\<close> at axis \<open>a\<close>.
-  All points in the left subtree must have a value at axis \<open>a\<close> that is less than or
-  equal to \<open>s\<close> and all points in the right subtree must have a value at axis \<open>a\<close> that is
-  greater than or equal to \<open>s\<close>.
+  Consider a node \<open>n\<close> with associated discriminator \<open>v\<close> at axis \<open>k\<close>.
+  All points in the left subtree must have a value at axis \<open>k\<close> that is less than or
+  equal to \<open>v\<close> and all points in the right subtree must have a value at axis \<open>k\<close> that is
+  greater than \<open>v\<close>.
 
   Deviations from the papers:
 
   The chosen tree representation is taken from @{cite "DBLP:journals/toms/FriedmanBF77"} with one minor
   adjustment. Originally the leafs hold buckets of points of size \<open>b\<close>. This representation fixes the
   bucket size to \<open>b = 1\<close>, a single point per Leaf. This is only a minor adjustment since the paper
-  proves that \<open>b = 1\<close> is the optimal bucket size for minimizing the runtime of the nearest neighbor
+  proves that \<open>b = 1\<close> is the optimal bucket size for minimizing the running time of the nearest neighbor
   algorithm @{cite "DBLP:journals/toms/FriedmanBF77"}, only simplifies building the optimized
   \<open>k\<close>-d trees @{cite "DBLP:journals/toms/FriedmanBF77"} and has little influence on the
   search algorithm @{cite "DBLP:journals/cacm/Bentley75"}.
 \<close>
 
-type_synonym point = "real list"
-type_synonym axis = nat
-type_synonym dimension = nat
-type_synonym discriminator = real
+type_synonym 'k point = "(real, 'k) vec"
 
-datatype kdt =
-  Leaf point
-| Node axis discriminator kdt kdt
+lemma dist_point_def:
+  fixes p\<^sub>0 :: "('k::finite) point"
+  shows "dist p\<^sub>0 p\<^sub>1 = sqrt (\<Sum>k \<in> UNIV. (p\<^sub>0$k - p\<^sub>1$k)\<^sup>2)"
+  unfolding dist_vec_def L2_set_def dist_real_def by simp
+
+datatype 'k kdt =
+  Leaf "'k point"
+| Node 'k real "'k kdt" "'k kdt"
 
 
 subsection "Definition of the \<open>k\<close>-d Tree Invariant and Related Functions"
 
-definition dim :: "point \<Rightarrow> nat"  where
-  "dim p = length p"
-
-declare dim_def[simp]
-
-fun set_kdt :: "kdt \<Rightarrow> point set" where
-  "set_kdt (Leaf p) = {p}"
+fun set_kdt :: "'k kdt \<Rightarrow> ('k point) set" where
+  "set_kdt (Leaf p) = { p }"
 | "set_kdt (Node _ _ l r) = set_kdt l \<union> set_kdt r"
 
-fun invar :: "dimension \<Rightarrow> kdt \<Rightarrow> bool" where
-  "invar k (Leaf p) \<longleftrightarrow> dim p = k"
-| "invar k (Node a s l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p!a \<le> s) \<and> (\<forall>p \<in> set_kdt r. s \<le> p!a) \<and>
-    invar k l \<and> invar k r \<and> a < k \<and> set_kdt l \<inter> set_kdt r = {}"
+fun invar :: "('k::finite) kdt \<Rightarrow> bool" where
+  "invar (Leaf p) \<longleftrightarrow> True"
+| "invar (Node k v l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p$k \<le> v) \<and> (\<forall>p \<in> set_kdt r. v < p$k) \<and>
+    invar l \<and> invar r"
 
-fun size_kdt :: "kdt \<Rightarrow> nat" where
+fun size_kdt :: "'k kdt \<Rightarrow> nat" where
   "size_kdt (Leaf _) = 1"
 | "size_kdt (Node _ _ l r) = size_kdt l + size_kdt r"
 
-fun height :: "kdt \<Rightarrow> nat" where
+fun height :: "'k kdt \<Rightarrow> nat" where
   "height (Leaf _) = 0"
 | "height (Node _ _ l r) = max (height l) (height r) + 1"
 
-fun min_height :: "kdt \<Rightarrow> nat" where
+fun min_height :: "'k kdt \<Rightarrow> nat" where
   "min_height (Leaf _) = 0"
 | "min_height (Node _ _ l r) = min (min_height l) (min_height r) + 1"
 
-definition balanced :: "kdt \<Rightarrow> bool" where
+definition balanced :: "'k kdt \<Rightarrow> bool" where
   "balanced kdt \<longleftrightarrow> height kdt - min_height kdt \<le> 1"
 
-fun complete :: "kdt \<Rightarrow> bool" where
+fun complete :: "'k kdt \<Rightarrow> bool" where
   "complete (Leaf _) = True"
 | "complete (Node _ _ l r) \<longleftrightarrow> complete l \<and> complete r \<and> height l = height r"
 
 
 lemma invar_l:
-  "invar k (Node a s l r) \<Longrightarrow> invar k l"
+  "invar (Node k v l r) \<Longrightarrow> invar l"
   by simp
 
 lemma invar_r:
-  "invar k (Node a s l r) \<Longrightarrow> invar k r"
+  "invar (Node k v l r) \<Longrightarrow> invar r"
   by simp
 
-lemma invar_axis_lt_d:
-  "invar k (Node a s l r) \<Longrightarrow> a < k"
+lemma invar_l_le_k:
+  "invar (Node k v l r) \<Longrightarrow> \<forall>p \<in> set_kdt l. p$k \<le> v"
   by simp
 
-lemma invar_dim:
-  "invar k kdt \<Longrightarrow> \<forall>p \<in> set_kdt kdt. dim p = k"
-  by (induction kdt) auto
-
-lemma invar_l_le_a:
-  "invar k (Node a s l r) \<Longrightarrow> \<forall>p \<in> set_kdt l. p!a \<le> s"
+lemma invar_r_ge_k:
+  "invar (Node k v l r) \<Longrightarrow> \<forall>p \<in> set_kdt r. v < p$k"
   by simp
-
-lemma invar_r_ge_a:
-  "invar k (Node a s l r) \<Longrightarrow> \<forall>p \<in> set_kdt r. s \<le> p!a"
-  by simp
-
-lemma invar_distinct:
-  "invar k kdt \<Longrightarrow> kdt = Node a s l r \<Longrightarrow> set_kdt l \<inter> set_kdt r = {}"
-  by fastforce
 
 lemma invar_set:
-  "set_kdt (Node a s l r) = set_kdt l \<union> set_kdt r"
+  "set_kdt (Node k v l r) = set_kdt l \<union> set_kdt r"
   by simp
 
 
@@ -129,7 +116,7 @@ lemma eq_1_size[simp]:
   using eq_size_1 by metis
 
 lemma neq_Leaf_iff: 
-  "(\<nexists>p. kdt = Leaf p) = (\<exists>a s l r. kdt = Node a s l r)"
+  "(\<nexists>p. kdt = Leaf p) = (\<exists>k v l r. kdt = Node k v l r)"
   by (cases kdt) auto
 
 lemma eq_height_0[simp]: 
@@ -151,19 +138,19 @@ lemma eq_0_min_height[simp]:
 lemma size_height: 
   "size_kdt kdt \<le> 2 ^ height kdt"
 proof(induction kdt)
-  case (Node a s l r)
+  case (Node k v l r)
   show ?case
   proof (cases "height l \<le> height r")
     case True
-    have "size_kdt (Node a s l r) = size_kdt l + size_kdt r" by simp
+    have "size_kdt (Node k v l r) = size_kdt l + size_kdt r" by simp
     also have "\<dots> \<le> 2 ^ height l + 2 ^ height r" using Node.IH by arith
     also have "\<dots> \<le> 2 ^ height r + 2 ^ height r" using True by simp
-    also have "\<dots> = 2 ^ height (Node a s l r)"
+    also have "\<dots> = 2 ^ height (Node k v l r)"
       using True by (auto simp: max_def mult_2)
     finally show ?thesis .
   next
     case False
-    have "size_kdt (Node a s l r) = size_kdt l + size_kdt r" by simp
+    have "size_kdt (Node k v l r) = size_kdt l + size_kdt r" by simp
     also have "\<dots> \<le> 2 ^ height l + 2 ^ height r" using Node.IH by arith
     also have "\<dots> \<le> 2 ^ height l + 2 ^ height l" using False by simp
     finally show ?thesis using False by (auto simp: max_def mult_2)
@@ -177,10 +164,10 @@ lemma min_height_le_height:
 lemma min_height_size: 
   "2 ^ min_height kdt \<le> size_kdt kdt"
 proof(induction kdt)
-  case (Node a s l r)
-  have "(2::nat) ^ min_height (Node a s l r) \<le> 2 ^ min_height l + 2 ^ min_height r"
+  case (Node k v l r)
+  have "(2::nat) ^ min_height (Node k v l r) \<le> 2 ^ min_height l + 2 ^ min_height r"
     by (simp add: min_def)
-  also have "\<dots> \<le> size_kdt (Node a s l r)" using Node.IH by simp
+  also have "\<dots> \<le> size_kdt (Node k v l r)" using Node.IH by simp
   finally show ?case .
 qed simp
 
@@ -203,8 +190,8 @@ next
   case (Suc h)
   hence "\<nexists>p. kdt = Leaf p"
     by auto
-  then obtain a s l r where [simp]: "kdt = Node a s l r"
-    using neq_Leaf_iff by auto
+  then obtain k v l r where [simp]: "kdt = Node k v l r"
+    using neq_Leaf_iff by metis
   have 1: "height l \<le> h" and 2: "height r \<le> h" using Suc(2) by(auto)
   have 3: "\<not> height l < h"
   proof
@@ -246,8 +233,8 @@ next
   case (Suc h)
   hence "\<nexists>p. kdt = Leaf p"
     by auto
-  then obtain a s l r where [simp]: "kdt = Node a s l r"
-    using neq_Leaf_iff by auto
+  then obtain k v l r where [simp]: "kdt = Node k v l r"
+    using neq_Leaf_iff by metis
   have 1: "h \<le> min_height l" and 2: "h \<le> min_height r" using Suc(2) by (auto)
   have 3: "\<not> h < min_height l"
   proof
@@ -295,11 +282,11 @@ lemma min_height_size_if_incomplete:
   by (metis complete_if_size_min_height le_less min_height_size)
 
 lemma balanced_subtreeL: 
-  "balanced (Node a s l r) \<Longrightarrow> balanced l"
+  "balanced (Node k v l r) \<Longrightarrow> balanced l"
   by (simp add: balanced_def)
 
 lemma balanced_subtreeR: 
-  "balanced (Node a s l r) \<Longrightarrow> balanced r"
+  "balanced (Node k v l r) \<Longrightarrow> balanced r"
   by (simp add: balanced_def)
 
 lemma balanced_optimal:
@@ -394,17 +381,17 @@ qed
 
 lemma balanced_Node_if_wbal1:
   assumes "balanced l" "balanced r" "size_kdt l = size_kdt r + 1"
-  shows "balanced (Node a s l r)"
+  shows "balanced (Node k v l r)"
 proof -
   from assms(3) have [simp]: "size_kdt l = size_kdt r + 1" by simp
   have "nat \<lceil>log 2 (1 + size_kdt r)\<rceil> \<ge> nat \<lceil>log 2 (size_kdt r)\<rceil>"
     by(rule nat_mono[OF ceiling_mono]) simp
-  hence 1: "height(Node a s l r) = nat \<lceil>log 2 (1 + size_kdt r)\<rceil> + 1"
+  hence 1: "height(Node k v l r) = nat \<lceil>log 2 (1 + size_kdt r)\<rceil> + 1"
     using height_balanced[OF assms(1)] height_balanced[OF assms(2)]
     by (simp del: nat_ceiling_le_eq add: max_def)
   have "nat \<lfloor>log 2 (1 + size_kdt r)\<rfloor> \<ge> nat \<lfloor>log 2 (size_kdt r)\<rfloor>"
     by(rule nat_mono[OF floor_mono]) simp
-  hence 2: "min_height(Node a s l r) = nat \<lfloor>log 2 (size_kdt r)\<rfloor> + 1"
+  hence 2: "min_height(Node k v l r) = nat \<lfloor>log 2 (size_kdt r)\<rfloor> + 1"
     using min_height_balanced[OF assms(1)] min_height_balanced[OF assms(2)]
     by (simp)
   have "size_kdt r \<ge> 1" by (simp add: Suc_leI)
@@ -416,12 +403,12 @@ proof -
 qed
 
 lemma balanced_sym: 
-  "balanced (Node a s l r) \<Longrightarrow> balanced (Node a' s' r l)"
+  "balanced (Node k v l r) \<Longrightarrow> balanced (Node k' v' r l)"
   by (auto simp: balanced_def)
 
 lemma balanced_Node_if_wbal2:
   assumes "balanced l" "balanced r" "abs(int(size_kdt l) - int(size_kdt r)) \<le> 1"
-  shows "balanced (Node a s l r)"
+  shows "balanced (Node k v l r)"
 proof -
   have "size_kdt l = size_kdt r \<or> (size_kdt l = size_kdt r + 1 \<or> size_kdt r = size_kdt l + 1)" (is "?A \<or> ?B")
     using assms(3) by linarith
