@@ -6,7 +6,7 @@ session "KDTree" (AFP) = "HOL-Analysis" +
     Median_Of_Medians_Selection
   theories
     KDTree
-    Balanced
+    Build
     Range_Search
     Nearest_Neighbors
   document_files

@@ -41,6 +41,11 @@ lemma dist_point_def:
   shows "dist p\<^sub>0 p\<^sub>1 = sqrt (\<Sum>k \<in> UNIV. (p\<^sub>0$k - p\<^sub>1$k)\<^sup>2)"
   unfolding dist_vec_def L2_set_def dist_real_def by simp
 
+lemma dist_vec_def:
+  fixes x :: "('v::metric_space, 'k::finite) vec"
+  shows "dist x y = sqrt (\<Sum>k \<in> UNIV. (dist (x$k) (y$k))\<^sup>2)"
+  unfolding dist_vec_def L2_set_def by simp
+
 datatype 'k kdt =
   Leaf "'k point"
 | Node 'k real "'k kdt" "'k kdt"
@@ -52,10 +57,16 @@ fun set_kdt :: "'k kdt \<Rightarrow> ('k point) set" where
   "set_kdt (Leaf p) = { p }"
 | "set_kdt (Node _ _ l r) = set_kdt l \<union> set_kdt r"
 
+definition spread :: "('k::finite) \<Rightarrow> 'k point set \<Rightarrow> real" where
+  "spread a ps = (if ps = {} then 0 else let as = (\<lambda>p. p$a) ` ps in Max as - Min as)"
+
+definition widest_spread_axis :: "('k::finite) \<Rightarrow> 'k set \<Rightarrow> 'k point set \<Rightarrow> bool" where
+  "widest_spread_axis k K ps \<longleftrightarrow> (\<forall>k' \<in> K. spread k' ps \<le> spread k ps)" 
+
 fun invar :: "('k::finite) kdt \<Rightarrow> bool" where
   "invar (Leaf p) \<longleftrightarrow> True"
 | "invar (Node k v l r) \<longleftrightarrow> (\<forall>p \<in> set_kdt l. p$k \<le> v) \<and> (\<forall>p \<in> set_kdt r. v < p$k) \<and>
-    invar l \<and> invar r"
+    widest_spread_axis k UNIV (set_kdt l \<union> set_kdt r) \<and> invar l \<and> invar r"
 
 fun size_kdt :: "'k kdt \<Rightarrow> nat" where
   "size_kdt (Leaf _) = 1"
