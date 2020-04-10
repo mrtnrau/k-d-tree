@@ -41,11 +41,6 @@ lemma dist_point_def:
   shows "dist p\<^sub>0 p\<^sub>1 = sqrt (\<Sum>k \<in> UNIV. (p\<^sub>0$k - p\<^sub>1$k)\<^sup>2)"
   unfolding dist_vec_def L2_set_def dist_real_def by simp
 
-lemma dist_vec_def:
-  fixes x :: "('v::metric_space, 'k::finite) vec"
-  shows "dist x y = sqrt (\<Sum>k \<in> UNIV. (dist (x$k) (y$k))\<^sup>2)"
-  unfolding dist_vec_def L2_set_def by simp
-
 datatype 'k kdt =
   Leaf "'k point"
 | Node 'k real "'k kdt" "'k kdt"
@@ -58,7 +53,7 @@ fun set_kdt :: "'k kdt \<Rightarrow> ('k point) set" where
 | "set_kdt (Node _ _ l r) = set_kdt l \<union> set_kdt r"
 
 definition spread :: "('k::finite) \<Rightarrow> 'k point set \<Rightarrow> real" where
-  "spread a ps = (if ps = {} then 0 else let as = (\<lambda>p. p$a) ` ps in Max as - Min as)"
+  "spread k P = (if P = {} then 0 else let V = (\<lambda>p. p$k) ` P in Max V - Min V)"
 
 definition widest_spread_axis :: "('k::finite) \<Rightarrow> 'k set \<Rightarrow> 'k point set \<Rightarrow> bool" where
   "widest_spread_axis k K ps \<longleftrightarrow> (\<forall>k' \<in> K. spread k' ps \<le> spread k ps)" 
