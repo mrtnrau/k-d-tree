@@ -5,7 +5,7 @@
 
 section \<open>Building a balanced \<open>k\<close>-d Tree from a List of Points\<close>
 
-theory Build
+theory Balanced
 imports
   KDTree
   Median_Of_Medians_Selection.Median_Of_Medians_Selection

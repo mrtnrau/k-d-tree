@@ -56,7 +56,7 @@ definition spread :: "('k::finite) \<Rightarrow> 'k point set \<Rightarrow> real
   "spread k P = (if P = {} then 0 else let V = (\<lambda>p. p$k) ` P in Max V - Min V)"
 
 definition widest_spread_axis :: "('k::finite) \<Rightarrow> 'k set \<Rightarrow> 'k point set \<Rightarrow> bool" where
-  "widest_spread_axis k K ps \<longleftrightarrow> (\<forall>k' \<in> K. spread k' ps \<le> spread k ps)" 
+  "widest_spread_axis k K ps \<longleftrightarrow> (\<forall>k' \<in> K. spread k' ps \<le> spread k ps)"
 
 fun invar :: "('k::finite) kdt \<Rightarrow> bool" where
   "invar (Leaf p) \<longleftrightarrow> True"
@@ -106,7 +106,7 @@ lemma invar_set:
 
 subsection \<open>Lemmas adapted from \<open>HOL-Library.Tree\<close> to \<open>k\<close>-d Tree\<close>
 
-lemma size_ge0[simp]: 
+lemma size_ge0[simp]:
   "0 < size_kdt kdt"
   by (induction kdt) auto
 
@@ -121,27 +121,27 @@ lemma eq_1_size[simp]:
   "1 = size_kdt kdt \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
   using eq_size_1 by metis
 
-lemma neq_Leaf_iff: 
+lemma neq_Leaf_iff:
   "(\<nexists>p. kdt = Leaf p) = (\<exists>k v l r. kdt = Node k v l r)"
   by (cases kdt) auto
 
-lemma eq_height_0[simp]: 
+lemma eq_height_0[simp]:
   "height kdt = 0 \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
   by (cases kdt) auto
 
-lemma eq_0_height[simp]: 
+lemma eq_0_height[simp]:
   "0 = height kdt \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
   by (cases kdt) auto
 
-lemma eq_min_height_0[simp]: 
+lemma eq_min_height_0[simp]:
   "min_height kdt = 0 \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
   by (cases kdt) auto
 
-lemma eq_0_min_height[simp]: 
+lemma eq_0_min_height[simp]:
   "0 = min_height kdt \<longleftrightarrow> (\<exists>p. kdt = Leaf p)"
   by (cases kdt) auto
 
-lemma size_height: 
+lemma size_height:
   "size_kdt kdt \<le> 2 ^ height kdt"
 proof(induction kdt)
   case (Node k v l r)
@@ -163,11 +163,11 @@ proof(induction kdt)
   qed
 qed simp
 
-lemma min_height_le_height: 
+lemma min_height_le_height:
   "min_height kdt \<le> height kdt"
   by (induction kdt) auto
 
-lemma min_height_size: 
+lemma min_height_size:
   "2 ^ min_height kdt \<le> size_kdt kdt"
 proof(induction kdt)
   case (Node k v l r)
@@ -177,18 +177,18 @@ proof(induction kdt)
   finally show ?case .
 qed simp
 
-lemma complete_iff_height: 
+lemma complete_iff_height:
   "complete kdt \<longleftrightarrow> (min_height kdt = height kdt)"
   apply (induction kdt)
   apply simp
   apply (simp add: min_def max_def)
   by (metis le_antisym le_trans min_height_le_height)
 
-lemma size_if_complete: 
+lemma size_if_complete:
   "complete kdt \<Longrightarrow> size_kdt kdt = 2 ^ height kdt"
   by (induction kdt) auto
 
-lemma complete_if_size_height: 
+lemma complete_if_size_height:
   "size_kdt kdt = 2 ^ height kdt \<Longrightarrow> complete kdt"
 proof (induction "height kdt" arbitrary: kdt)
   case 0 thus ?case by auto
@@ -231,7 +231,7 @@ next
   with * Suc(1) show ?case by simp
 qed
 
-lemma complete_if_size_min_height: 
+lemma complete_if_size_min_height:
   "size_kdt kdt = 2 ^ min_height kdt \<Longrightarrow> complete kdt"
 proof (induct "min_height kdt" arbitrary: kdt)
   case 0 thus ?case by auto
@@ -275,7 +275,7 @@ next
     by (simp add: complete_iff_height)
 qed
 
-lemma complete_iff_size: 
+lemma complete_iff_size:
   "complete kdt \<longleftrightarrow> size_kdt kdt = 2 ^ height kdt"
   using complete_if_size_height size_if_complete by blast
 
@@ -287,11 +287,11 @@ lemma min_height_size_if_incomplete:
   "\<not> complete kdt \<Longrightarrow> 2 ^ min_height kdt < size_kdt kdt"
   by (metis complete_if_size_min_height le_less min_height_size)
 
-lemma balanced_subtreeL: 
+lemma balanced_subtreeL:
   "balanced (Node k v l r) \<Longrightarrow> balanced l"
   by (simp add: balanced_def)
 
-lemma balanced_subtreeR: 
+lemma balanced_subtreeR:
   "balanced (Node k v l r) \<Longrightarrow> balanced r"
   by (simp add: balanced_def)
 
@@ -330,15 +330,15 @@ qed
 
 subsection \<open>Lemmas adapted from \<open>HOL-Library.Tree_Real\<close> to \<open>k\<close>-d Tree\<close>
 
-lemma size_height_log: 
+lemma size_height_log:
   "log 2 (size_kdt kdt) \<le> height kdt"
   by (simp add: log2_of_power_le size_height)
 
-lemma min_height_size_log: 
+lemma min_height_size_log:
   "min_height kdt \<le> log 2 (size_kdt kdt)"
   by (simp add: le_log2_of_power min_height_size)
 
-lemma size_log_if_complete: 
+lemma size_log_if_complete:
   "complete kdt \<Longrightarrow> height kdt = log 2 (size_kdt kdt)"
   by (simp add: log2_of_power_eq size_if_complete)
 
@@ -346,7 +346,7 @@ lemma min_height_size_log_if_incomplete:
   "\<not> complete kdt \<Longrightarrow> min_height kdt < log 2 (size_kdt kdt)"
   by (simp add: less_log2_of_power min_height_size_if_incomplete)
 
-lemma min_height_balanced: 
+lemma min_height_balanced:
   assumes "balanced kdt"
   shows "min_height kdt = nat(floor(log 2 (size_kdt kdt)))"
 proof cases
@@ -366,7 +366,7 @@ next
   thus ?thesis using min_height_size_log[of kdt] by linarith
 qed
 
-lemma height_balanced: 
+lemma height_balanced:
   assumes "balanced kdt"
   shows "height kdt = nat(ceiling(log 2 (size_kdt kdt)))"
 proof cases
@@ -408,7 +408,7 @@ proof -
   show ?thesis by(simp add:balanced_def)
 qed
 
-lemma balanced_sym: 
+lemma balanced_sym:
   "balanced (Node k v l r) \<Longrightarrow> balanced (Node k' v' r l)"
   by (auto simp: balanced_def)
 

@@ -6,13 +6,13 @@
 section \<open>Nearest Neighbor Search on the \<open>k\<close>-d Tree\<close>
 
 theory Nearest_Neighbors
-imports 
+imports
   KDTree
 begin
 
 text \<open>
-  Verifying nearest neighbor search on the k-d tree. Given a \<open>k\<close>-d tree and a point \<open>p\<close>, 
-  which might not be in the tree, find the points \<open>ps\<close> that are closest to \<open>p\<close> using the 
+  Verifying nearest neighbor search on the k-d tree. Given a \<open>k\<close>-d tree and a point \<open>p\<close>,
+  which might not be in the tree, find the points \<open>ps\<close> that are closest to \<open>p\<close> using the
   Euclidean metric.
 \<close>
 
@@ -23,7 +23,7 @@ lemma
   shows sorted_wrt_take: "sorted_wrt f (take n xs)"
   and sorted_wrt_drop: "sorted_wrt f (drop n xs)"
 proof -
-  have "sorted_wrt f (take n xs @ drop n xs)" 
+  have "sorted_wrt f (take n xs @ drop n xs)"
     using assms by simp
   thus "sorted_wrt f (take n xs)" "sorted_wrt f (drop n xs)"
     using sorted_wrt_append by blast+
@@ -79,12 +79,12 @@ lemma sorted_wrt_dist_nbors:
 proof -
   have "sorted_wrt_dist p (insort_key (\<lambda>q. dist q p) q ps)"
     using assms sorted_wrt_dist_insort_key by blast
-  thus ?thesis 
+  thus ?thesis
     by (simp add: sorted_wrt_dist_def sorted_wrt_take upd_nbors_def)
 qed
 
 lemma sorted_wrt_dist_nbors_diff:
-  assumes "sorted_wrt_dist p ps" 
+  assumes "sorted_wrt_dist p ps"
   shows "\<forall>r \<in> set ps \<union> {q} - set (upd_nbors n p q ps). \<forall>s \<in> set (upd_nbors n p q ps). dist s p \<le> dist r p"
 proof -
   let ?ps' = "insort_key (\<lambda>q. dist q p) q ps"
@@ -253,7 +253,7 @@ proof (induction kdt arbitrary: ps)
     using Node.prems(1,3) set_nns by fastforce+
   hence "distinct (nearest_nbors n ?nnsl p r)" "distinct (nearest_nbors n ?nnsr p l)"
     using Node.IH(1,2) Node.prems(1,2) DCLR invar_l invar_r by blast+
-  thus ?case 
+  thus ?case
     using DCLR by (auto simp add: Let_def)
 qed (auto simp: upd_nbors_def distinct_insort)
 
@@ -273,7 +273,7 @@ proof (induction kdt arbitrary: ps)
   hence "dist (last (nearest_nbors n ?nnsl p r)) p \<le> dist (last ps) p"
         "dist (last (nearest_nbors n ?nnsr p l)) p \<le> dist (last ps) p"
     using Node.IH(1)[of ps] Node.IH(2)[of ps] Node.prems invar_l length_nns_gt_0 by auto
-  thus ?case 
+  thus ?case
     using Node by (auto simp add: Let_def)
 qed (auto simp: sorted_wrt_dist_last_upd_nbors_mono)
 
@@ -409,13 +409,13 @@ proof (induction kdt arbitrary: ps)
         using last_nns_mono SORTED_R invar_l Node.prems(1,2,5) by (metis order_refl)
       have "dist (last ?nnsr) p \<le> dist q p"
         using IHR * by blast
-      thus "dist (last ?nns) p \<le> dist q p" 
+      thus "dist (last ?nns) p \<le> dist q p"
         using LAST by argo
     qed
     hence L: "\<forall>q \<in> set_kdt r - set ?nns. dist (last ?nns) p \<le> dist q p"
       using IHRL by blast
 
-    show ?thesis 
+    show ?thesis
       using D R L by auto
   qed
 qed (auto simp: sorted_wrt_dist_nbors_diff upd_nbors_def)
@@ -458,7 +458,7 @@ proof (cases "0 < n")
 next
   case False
   hence "length nns = 0"
-    using assms(2) unfolding nearest_neighbors_def by (auto simp: length_nns)    
+    using assms(2) unfolding nearest_neighbors_def by (auto simp: length_nns)
   thus ?thesis
     by simp
 qed

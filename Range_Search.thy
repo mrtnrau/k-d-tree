@@ -6,12 +6,12 @@
 section \<open>Range Searching\<close>
 
 theory Range_Search
-imports 
+imports
   KDTree
 begin
 
 text\<open>
-  Given two \<open>k\<close>-dimensional points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> which bound the search space, the search should 
+  Given two \<open>k\<close>-dimensional points \<open>p\<^sub>0\<close> and \<open>p\<^sub>1\<close> which bound the search space, the search should
   return only the points which satisfy the following criteria:
 
   For every point p in the resulting set: \newline
